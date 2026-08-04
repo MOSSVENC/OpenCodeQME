@@ -1,6 +1,8 @@
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="68HUB — OpenCode Go Usage Dashboard">
+  <img src="./assets/readme/hero.svg" width="100%" alt="OpenCodeQME — OpenCode Quota Monitor Extension">
 </p>
+
+> **OpenCodeQME** stands for **OpenCode Quota Monitor Extension**, an OpenCode quota monitoring browser extension.
 
 <p align="center">
   <a href="./README.md"><img src="./assets/readme/lang-en.svg" width="100%" alt="Switch to 中文"></a>
@@ -73,7 +75,7 @@ pnpm dev:vite
 </p>
 
 ```
-68HUB/
+OpenCodeQME/
 ├── electron/
 │   ├── main.ts            # Electron main process + embedded backend startup
 │   ├── preload.ts         # IPC bridge
@@ -101,7 +103,7 @@ pnpm dev:vite
 pnpm dist
 ```
 
-Output: `release\68HUB Setup <version>.exe`
+Output: `release\OpenCodeQME Setup <version>.exe`
 
 <p align="center">
   <img src="./assets/readme/section-thanks.svg" width="100%" alt="Acknowledgments">

@@ -1,6 +1,6 @@
-# 68HUB Material Extension
+# OpenCodeQME Extension
 
-轻量 MV3 浏览器扩展：单用户自动识别、Material 3 风格、IndexedDB 完整历史。
+OpenCodeQME 全称是 **OpenCode Quota Monitor Extension**，轻量 MV3 浏览器扩展：单用户自动识别、Material 3 风格、IndexedDB 完整历史。
 
 ## 功能
 

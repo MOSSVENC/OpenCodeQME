@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const extensionDir = path.join(root, 'extension');
 const releaseDir = path.join(root, 'release');
-const zipPath = path.join(releaseDir, '68hub-material-extension.zip');
+const zipPath = path.join(releaseDir, 'opencodeqme-extension.zip');
 
 const manifest = JSON.parse(readFileSync(path.join(extensionDir, 'manifest.json'), 'utf8'));
 execFileSync('node', [path.join(root, 'scripts/test-extension.mjs')], {

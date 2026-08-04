@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "68HUB Material",
+  "name": "OpenCodeQME",
   "version": "0.1.0",
   "description": "OpenCode Go single-user usage dashboard with full local history.",
   "permissions": ["alarms", "cookies", "storage"],
@@ -10,7 +10,7 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "68HUB Material",
+    "default_title": "OpenCodeQME",
     "default_icon": {
       "128": "icon.png"
     }

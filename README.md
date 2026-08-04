@@ -1,6 +1,8 @@
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="68HUB — OpenCode Go 用量统计面板">
+  <img src="./assets/readme/hero.svg" width="100%" alt="OpenCodeQME — OpenCode Quota Monitor Extension">
 </p>
+
+> OpenCodeQME 全称是 **OpenCode Quota Monitor Extension**，即 OpenCode 配额监控浏览器扩展。
 
 <p align="center">
   <a href="./README_en.md"><img src="./assets/readme/lang-zh.svg" width="100%" alt="切换至 English"></a>
@@ -73,7 +75,7 @@ pnpm dev:vite
 </p>
 
 ```
-68HUB/
+OpenCodeQME/
 ├── electron/
 │   ├── main.ts            # Electron 主进程 + 内嵌后端启动
 │   ├── preload.ts         # IPC 桥接
@@ -101,7 +103,7 @@ pnpm dev:vite
 pnpm dist
 ```
 
-输出：`release\68HUB Setup <version>.exe`
+输出：`release\OpenCodeQME Setup <version>.exe`
 
 <p align="center">
   <img src="./assets/readme/section-thanks.svg" width="100%" alt="致谢 Acknowledgments">
