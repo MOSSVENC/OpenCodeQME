@@ -18,6 +18,7 @@ for (const file of [
   'popup.js',
   'tab.js',
   'content-dock.js',
+  'shared/i18n.js',
   'shared/parsers.js',
   'shared/fetchers.js',
   'shared/history.js',

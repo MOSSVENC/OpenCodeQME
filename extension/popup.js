@@ -1,4 +1,5 @@
 const $ = (selector) => document.querySelector(selector);
+const t = (key, vars) => globalThis.OpenCodeI18n.t(key, vars);
 
 const els = {
   accountName: $('#accountName'),
@@ -17,6 +18,7 @@ const els = {
 };
 
 let currentSnapshot = null;
+let currentSettings = null;
 const numberAnimations = new Map();
 
 function sendRuntime(message) {
@@ -61,7 +63,8 @@ function formatTime(value) {
   if (!value) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString('zh-CN', {
+  const locale = globalThis.OpenCodeI18n.getLanguage() === 'en' ? 'en-US' : 'zh-CN';
+  return date.toLocaleString(locale, {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -74,8 +77,8 @@ function formatReset(value) {
   if (seconds <= 0) return '';
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
-  if (hours > 0) return `${hours}h ${minutes}m 后重置`;
-  return `${minutes}m 后重置`;
+  const time = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+  return t('resetAfter', { time });
 }
 
 function animateNumber(element, value, formatter = (v) => v.toLocaleString()) {
@@ -130,7 +133,7 @@ function renderQuota() {
   const quota = currentSnapshot?.quota;
   const windows = quota?.windows || [];
   if (!windows.length) {
-    els.quotaList.innerHTML = '<div class="empty-state">尚未同步到额度数据</div>';
+    els.quotaList.innerHTML = `<div class="empty-state">${t('noQuotaData')}</div>`;
     return;
   }
 
@@ -140,12 +143,12 @@ function renderQuota() {
     const resetText = window.label === '5h Rolling'
       ? formatReset(window.reset_in_sec)
       : window.reset_at
-        ? `${formatTime(window.reset_at)} 重置`
+        ? t('resetAt', { time: formatTime(window.reset_at) })
         : '';
     return `
       <div class="quota-item" style="animation-delay:${index * 45}ms">
         <div class="quota-row">
-          <span class="quota-label">${esc(window.label)}${window.blocked ? ' · 已阻塞' : ''}</span>
+          <span class="quota-label">${esc(window.label)}${window.blocked ? ` · ${t('blocked')}` : ''}</span>
           <span class="quota-value">${used}%</span>
         </div>
         <div class="progress-track">
@@ -165,15 +168,17 @@ function renderQuota() {
 
 function renderRecent() {
   const records = currentSnapshot?.snapshot?.recent_records || [];
-  els.recordCount.textContent = `${formatTokens(currentSnapshot?.snapshot?.total_records || 0)} 条`;
+  els.recordCount.textContent = t('recordsCount', {
+    count: formatTokens(currentSnapshot?.snapshot?.total_records || 0),
+  });
   if (!records.length) {
-    els.recentList.innerHTML = '<div class="empty-state">暂无使用记录</div>';
+    els.recentList.innerHTML = `<div class="empty-state">${t('noRecords')}</div>`;
     return;
   }
 
   els.recentList.innerHTML = records.slice(0, 3).map((record, index) => `
     <div class="record-item" style="animation-delay:${index * 35}ms">
-      <span class="record-model">${esc(record.model || 'Unknown')}</span>
+      <span class="record-model">${esc(record.model || t('unknownModel'))}</span>
       <span class="record-tokens">${formatTokens((record.input_tokens || 0) + (record.output_tokens || 0))}</span>
       <span class="record-meta">
         <span>${esc(formatTime(record.created_at))}</span>
@@ -186,8 +191,8 @@ function renderRecent() {
 function renderSnapshot() {
   const snapshot = currentSnapshot;
   if (!snapshot) {
-    els.accountName.textContent = '尚未识别账户';
-    status('等待后台自动同步', '');
+    els.accountName.textContent = t('accountUnrecognized');
+    status(t('waitingAccountSync'), '');
     renderQuota();
     renderRecent();
     return;
@@ -200,35 +205,35 @@ function renderSnapshot() {
 
   els.accountName.textContent = account.name || account.workspace_id || 'OpenCode';
   animateNumber(els.todayTokens, data.today_tokens || 0, formatTokens);
-  els.todayRequests.textContent = `${(data.today_requests || 0).toLocaleString()} 次请求`;
+  els.todayRequests.textContent = t('requestsCount', { count: (data.today_requests || 0).toLocaleString() });
 
   const effective = effectiveQuota(quota);
   if (effective) {
     animateNumber(els.quotaValue, effective.remaining, (v) => `${Math.round(v)}%`);
-    els.quotaSub.textContent = `${effective.label} 可用`;
+    els.quotaSub.textContent = t('availableSuffix', { label: effective.label });
   } else {
     els.quotaValue.textContent = '—';
-    els.quotaSub.textContent = quota?.error || '当前账户';
+    els.quotaSub.textContent = quota?.error || t('currentAccount');
   }
 
   const syncLabel = sync?.last_sync_status === 'error'
-    ? '同步失败'
+    ? t('syncFailed')
     : sync?.last_sync_at
-      ? `${formatTime(sync.last_sync_at)} 已同步`
-      : `${formatTokens(data.total_records || 0)} 条记录`;
+      ? `${formatTime(sync.last_sync_at)} ${t('synced')}`
+      : t('recordsCount', { count: formatTokens(data.total_records || 0) });
   els.syncChip.textContent = syncLabel;
 
   renderQuota();
   renderRecent();
 
   if (sync?.last_sync_status === 'error') {
-    status(sync.last_sync_error || '同步失败', 'error');
+    status(sync.last_sync_error || t('syncFailed'), 'error');
   } else if (quota?.success === false) {
-    status(quota.error || '配额获取失败', 'error');
+    status(quota.error || t('syncFailed'), 'error');
   } else if (data.total_records) {
-    status(`已保存 ${formatTokens(data.total_records)} 条完整历史`, 'success');
+    status(t('savedHistory', { count: formatTokens(data.total_records) }), 'success');
   } else {
-    status('等待首次同步', '');
+    status(t('waitingFirstSync'), '');
   }
 }
 
@@ -241,11 +246,11 @@ async function refresh() {
 async function syncNow(maxPages = 50) {
   els.syncBtn.classList.add('loading');
   els.syncBtn.disabled = true;
-  status('正在同步完整历史...', '');
+  status(t('syncingHistory'), '');
   try {
     await sendRuntime({ type: 'SYNC_NOW', maxPages });
     await refresh();
-    status('同步完成', 'success');
+    status(t('syncComplete'), 'success');
   } catch (error) {
     status(error.message, 'error');
   } finally {
@@ -258,13 +263,13 @@ function bindEvents() {
   els.syncBtn.addEventListener('click', () => syncNow(50));
   els.detailBtn.addEventListener('click', async () => {
     els.detailBtn.disabled = true;
-    els.detailBtn.textContent = '正在打开...';
+    els.detailBtn.textContent = t('openingDetail');
     try {
       await sendRuntime({ type: 'OPEN_TAB' });
       window.close();
     } catch (error) {
       els.detailBtn.disabled = false;
-      els.detailBtn.textContent = '进入详细模式';
+      els.detailBtn.textContent = t('enterDetailMode');
       status(error.message, 'error');
     }
   });
@@ -281,6 +286,15 @@ async function init() {
     }
   } catch {
     // If the background cannot answer, keep showing the compact preview.
+  }
+  try {
+    const settingsResponse = await sendRuntime({ type: 'GET_SETTINGS' });
+    currentSettings = settingsResponse.settings || {};
+    globalThis.OpenCodeI18n.setLanguage(currentSettings.language || 'auto');
+    document.documentElement.lang = globalThis.OpenCodeI18n.getLanguage();
+    globalThis.OpenCodeI18n.apply();
+  } catch {
+    // Keep the system language fallback if settings are unavailable.
   }
   await refresh();
   void syncNow(50);

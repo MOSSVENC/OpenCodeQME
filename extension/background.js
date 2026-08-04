@@ -429,6 +429,10 @@ async function handleMessage(message) {
     case 'OPEN_POPUP': {
       return openPopupMode();
     }
+    case 'RETURN_TO_POPUP': {
+      const uiMode = await setUiMode('popup');
+      return { uiMode };
+    }
     case 'OPEN_BY_MODE': {
       return openByUiMode();
     }

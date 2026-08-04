@@ -1,5 +1,6 @@
 (() => {
   const STORAGE_KEY = '68hub.dock_side';
+  const t = (key, vars) => globalThis.OpenCodeI18n.t(key, vars);
 
   const host = document.createElement('div');
   host.id = 'opencodeqme-dock-host';
@@ -12,14 +13,14 @@
   root.className = 'dock-root left';
   root.setAttribute('data-expanded', 'false');
   root.innerHTML = `
-    <button class="dock" type="button" aria-label="OpenCodeQME 状态与详情">
+    <button class="dock" type="button" aria-label="OpenCodeQME">
       <span class="dock-arrow" aria-hidden="true"></span>
       <span class="dock-body">
         <span class="dock-title">OpenCodeQME</span>
-        <span class="dock-quota">可用额度 --</span>
-        <span class="dock-sync">等待同步</span>
+        <span class="dock-quota">--</span>
+        <span class="dock-sync"></span>
       </span>
-      <span class="dock-open">打开详情</span>
+      <span class="dock-open"></span>
     </button>
   `;
 
@@ -29,6 +30,7 @@
   const dock = root.querySelector('.dock');
   const quotaEl = root.querySelector('.dock-quota');
   const syncEl = root.querySelector('.dock-sync');
+  const openEl = root.querySelector('.dock-open');
   let drag = null;
   let lastMoveDistance = 0;
 
@@ -79,7 +81,8 @@
     if (!value) return '';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
-    return date.toLocaleString('zh-CN', {
+    const locale = globalThis.OpenCodeI18n.getLanguage() === 'en' ? 'en-US' : 'zh-CN';
+    return date.toLocaleString(locale, {
       month: '2-digit',
       day: '2-digit',
       hour: '2-digit',
@@ -103,19 +106,38 @@
   function updateDock(snapshot) {
     const quota = effectiveQuota(snapshot);
     if (quota) {
-      quotaEl.textContent = `${quota.label} 剩余 ${quota.remaining}%`;
+      quotaEl.textContent = `${quota.label} ${t('remaining')} ${quota.remaining}%`;
     } else {
-      quotaEl.textContent = '可用额度 --';
+      quotaEl.textContent = `${t('availableQuota')} --`;
     }
 
     const sync = snapshot?.sync || {};
     const totalRecords = snapshot?.snapshot?.total_records || 0;
     if (sync.last_sync_status === 'error') {
-      syncEl.textContent = sync.last_sync_error || '同步失败';
+      syncEl.textContent = sync.last_sync_error || t('syncFailed');
     } else if (sync.last_sync_at) {
-      syncEl.textContent = `已同步 ${formatTime(sync.last_sync_at)} · ${totalRecords} 条`;
+      syncEl.textContent = `${t('synced')} ${formatTime(sync.last_sync_at)} · ${t('recordsCount', { count: totalRecords })}`;
     } else {
-      syncEl.textContent = totalRecords ? `${totalRecords} 条本地记录` : '等待同步';
+      syncEl.textContent = totalRecords ? t('localRecordsCount', { count: totalRecords }) : t('waitingSync');
+    }
+  }
+
+  function renderDockTexts() {
+    dock.setAttribute('aria-label', t('dockAria'));
+    openEl.textContent = t('openDetail');
+    quotaEl.textContent = `${t('availableQuota')} --`;
+    syncEl.textContent = syncEl.textContent || t('waitingSync');
+  }
+
+  async function loadDockSettings() {
+    try {
+      const response = await sendMessage({ type: 'GET_SETTINGS' });
+      globalThis.OpenCodeI18n.setLanguage(response.settings?.language || 'auto');
+      renderDockTexts();
+      await refreshDock();
+    } catch {
+      renderDockTexts();
+      void refreshDock();
     }
   }
 
@@ -124,8 +146,8 @@
       const response = await sendMessage({ type: 'GET_SNAPSHOT' });
       updateDock(response.snapshot || null);
     } catch (error) {
-      quotaEl.textContent = '可用额度 --';
-      syncEl.textContent = '扩展后台未就绪';
+      quotaEl.textContent = `${t('availableQuota')} --`;
+      syncEl.textContent = t('backgroundUnavailable');
     }
   }
 
@@ -196,7 +218,15 @@
     setSide(side, false);
   });
 
-  void refreshDock();
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes['68hub.settings']?.newValue) {
+      globalThis.OpenCodeI18n.setLanguage(changes['68hub.settings'].newValue.language || 'auto');
+      renderDockTexts();
+      void refreshDock();
+    }
+  });
+
+  void loadDockSettings();
   setInterval(() => {
     void refreshDock();
   }, 60000);

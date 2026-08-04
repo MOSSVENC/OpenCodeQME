@@ -83,6 +83,18 @@ button {
   position: sticky;
   top: 12px;
   z-index: 20;
+  animation: surfaceIn 360ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes surfaceIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .brand-lockup {
@@ -168,11 +180,12 @@ button {
   background: transparent;
   color: var(--on-surface);
   cursor: pointer;
-  transition: background 150ms cubic-bezier(0.2, 0, 0, 1);
+  transition: background 150ms cubic-bezier(0.2, 0, 0, 1), transform 150ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .icon-button:hover {
   background: var(--surface-container-high);
+  transform: translateY(-1px);
 }
 
 .icon-button.small {
@@ -270,12 +283,13 @@ button {
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 150ms, color 150ms;
+  transition: background 150ms, color 150ms, transform 150ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .nav-tab:hover {
   background: var(--surface-container-high);
   color: var(--on-surface);
+  transform: translateY(-1px);
 }
 
 .nav-tab.active {
@@ -292,6 +306,18 @@ button {
 .page.active {
   display: flex;
   flex-direction: column;
+  animation: pageIn 280ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes pageIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .page-heading {
@@ -370,6 +396,38 @@ button {
   border-radius: 8px;
   background: var(--surface-container);
   box-shadow: var(--shadow);
+  animation: cardIn 340ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.kpi-card:nth-child(2) {
+  animation-delay: 40ms;
+}
+
+.kpi-card:nth-child(3) {
+  animation-delay: 80ms;
+}
+
+.kpi-card:nth-child(4) {
+  animation-delay: 120ms;
+}
+
+.kpi-card:nth-child(5) {
+  animation-delay: 160ms;
+}
+
+.kpi-card:nth-child(6) {
+  animation-delay: 200ms;
+}
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .kpi-label {
@@ -413,6 +471,19 @@ button {
   border-radius: 8px;
   background: var(--surface-container);
   box-shadow: var(--shadow);
+  transition: box-shadow 180ms cubic-bezier(0.2, 0, 0, 1), transform 180ms cubic-bezier(0.2, 0, 0, 1);
+  animation: cardIn 400ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.panel:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(20, 35, 40, 0.08), 0 12px 32px rgba(20, 35, 40, 0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  .panel:hover {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35), 0 12px 32px rgba(0, 0, 0, 0.32);
+  }
 }
 
 .panel-grid {
@@ -598,6 +669,21 @@ th.num {
   font-variant-numeric: tabular-nums;
 }
 
+tbody tr {
+  animation: rowIn 260ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+@keyframes rowIn {
+  from {
+    opacity: 0;
+    transform: translateX(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 tbody tr:hover {
   background: var(--surface-container-high);
 }
@@ -662,6 +748,8 @@ tbody tr:hover {
   border-radius: 4px 4px 0 0;
   background: linear-gradient(180deg, var(--primary), var(--secondary));
   transition: height 700ms cubic-bezier(0.2, 0, 0, 1);
+  transform-origin: bottom;
+  will-change: height;
 }
 
 .chart-label {
@@ -803,6 +891,23 @@ tbody tr:hover {
   padding: 10px;
   border-radius: 8px;
   background: var(--surface-container-high);
+  animation: cardIn 320ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
+.sync-state-item:nth-child(2) {
+  animation-delay: 40ms;
+}
+
+.sync-state-item:nth-child(3) {
+  animation-delay: 80ms;
+}
+
+.sync-state-item:nth-child(4) {
+  animation-delay: 120ms;
+}
+
+.sync-state-item:nth-child(5) {
+  animation-delay: 160ms;
 }
 
 .sync-state-item span {

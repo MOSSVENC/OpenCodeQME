@@ -1,6 +1,23 @@
 const $ = (selector) => document.querySelector(selector);
 
 const PAGE_SIZE = 50;
+const t = (key, vars) => globalThis.OpenCodeI18n.t(key, vars);
+
+const PLAN_LABELS = {
+  lite: 'planLite',
+  free: 'planFree',
+  go: 'planGo',
+  zen: 'planZen',
+};
+
+function displayPlan(value) {
+  const key = PLAN_LABELS[String(value || '').toLowerCase()];
+  return key ? t(key) : value || '—';
+}
+
+function displayModel(value) {
+  return value === 'Unknown' ? t('unknownModel') : value;
+}
 
 const els = {
   accountName: $('#accountName'),
@@ -98,7 +115,8 @@ function formatTime(value) {
   if (!value) return '';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString('zh-CN', {
+  const locale = globalThis.OpenCodeI18n.getLanguage() === 'en' ? 'en-US' : 'zh-CN';
+  return date.toLocaleString(locale, {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
@@ -110,7 +128,8 @@ function formatDateTime(value) {
   if (!value) return '—';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString('zh-CN', {
+  const locale = globalThis.OpenCodeI18n.getLanguage() === 'en' ? 'en-US' : 'zh-CN';
+  return date.toLocaleString(locale, {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -123,7 +142,8 @@ function formatDate(value) {
   if (!value) return '—';
   const date = new Date(`${value}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString('zh-CN', {
+  const locale = globalThis.OpenCodeI18n.getLanguage() === 'en' ? 'en-US' : 'zh-CN';
+  return date.toLocaleDateString(locale, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
@@ -135,8 +155,8 @@ function formatReset(value) {
   if (seconds <= 0) return '';
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
-  if (hours > 0) return `${hours}h ${minutes}m 后重置`;
-  return `${minutes}m 后重置`;
+  const time = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+  return t('resetAfter', { time });
 }
 
 function cacheRate(uncached, cacheHit, cacheWrite) {
@@ -288,7 +308,7 @@ function kpi(label, value, sub, extraClass = '') {
   `;
 }
 
-function emptyRow(columns, message = '暂无数据') {
+function emptyRow(columns, message = t('noData')) {
   return `<tr><td class="empty-cell" colspan="${columns}">${esc(message)}</td></tr>`;
 }
 
@@ -305,7 +325,7 @@ function renderOverview() {
     : 0;
   const accountLabel = account
     ? account.name || account.workspace_id || 'OpenCode'
-    : '尚未识别';
+    : t('accountUnrecognized');
   const totals = stats.totals;
   const totalTokens = totals.input + totals.output;
   const todayTokens = totals.todayTokens || snapshot?.snapshot?.today_tokens || 0;
@@ -313,12 +333,14 @@ function renderOverview() {
   const totalRecords = records.length || snapshot?.snapshot?.total_records || 0;
 
   els.overviewKpis.innerHTML = [
-    kpi('当前账户', accountLabel, account ? `${available} 可用 · ${blocked} 阻塞` : '等待后台同步'),
-    kpi('平均剩余配额', `${averageRemaining.toFixed(1)}%`, '三个配额窗口均值'),
-    kpi('总 Token', formatTokens(totalTokens), `${formatCount(totals.requests)} 次请求`),
-    kpi('今日 Token', formatTokens(todayTokens), `${formatCount(todayRequests)} 次请求`),
-    kpi('请求数', formatCount(totals.requests), `费用 ${formatMoney(totals.cost)}`),
-    kpi('本地记录', formatCount(totalRecords), '完整历史条数'),
+    kpi(t('currentAccount'), accountLabel, account
+      ? t('availableBlocked', { available, blocked })
+      : t('waitingAccountSync')),
+    kpi(t('avgRemainingQuota'), `${averageRemaining.toFixed(1)}%`, t('avgRemainingSub')),
+    kpi(t('totalTokens'), formatTokens(totalTokens), `${formatCount(totals.requests)} ${t('requests')}`),
+    kpi(t('todayTokens'), formatTokens(todayTokens), t('requestsCount', { count: todayRequests })),
+    kpi(t('requestsLabel'), formatCount(totals.requests), `${t('cost')} ${formatMoney(totals.cost)}`),
+    kpi(t('localRecords'), formatCount(totalRecords), t('localRecordsSub')),
   ].join('');
 
   els.quotaPanel.innerHTML = windows.length
@@ -328,16 +350,18 @@ function renderOverview() {
         const resetText = item.label === '5h Rolling'
           ? formatReset(item.reset_in_sec)
           : item.reset_at
-            ? `${formatDateTime(item.reset_at)} 重置`
+            ? t('resetAt', { time: formatDateTime(item.reset_at) })
             : '';
         const blockedText = item.blocked
-          ? `已阻塞${item.blocked_by ? `：${item.blocked_by}` : ''}`
+          ? item.blocked_by
+            ? t('blockedBy', { by: item.blocked_by })
+            : t('blocked')
           : '';
         return `
           <div class="quota-item" style="animation-delay:${index * 45}ms">
             <div class="quota-row">
               <span class="quota-label">${esc(item.label)}</span>
-              <span class="quota-value">${used}% · 剩余 ${effectiveRemaining(item)}%</span>
+              <span class="quota-value">${used}% · ${t('remaining')} ${effectiveRemaining(item)}%</span>
             </div>
             <div class="progress-track">
               <div class="progress-fill ${tone}" data-used="${used}"></div>
@@ -347,7 +371,7 @@ function renderOverview() {
           </div>
         `;
       }).join('')
-    : '<div class="empty-state">尚未同步到额度数据</div>';
+    : `<div class="empty-state">${t('noQuotaData')}</div>`;
 
   const topModels = stats.modelStats.slice(0, 3);
   const maxTopTokens = Math.max(
@@ -360,28 +384,28 @@ function renderOverview() {
         const width = Math.max(3, Math.round((total / maxTopTokens) * 100));
         return `
           <div class="model-rank-row">
-            <span class="model-rank-name">${esc(item.model)}</span>
+            <span class="model-rank-name">${esc(displayModel(item.model))}</span>
             <span class="model-rank-tokens">${formatTokens(total)}</span>
             <span class="model-rank-sub">
               <span class="progress-track"><span class="progress-fill" data-used="${width}"></span></span>
-              <span>${item.request_count} 次</span>
+            <span>${t('requestsCount', { count: item.request_count })}</span>
             </span>
           </div>
         `;
       }).join('')
-    : '<div class="empty-state">暂无模型数据</div>';
+    : `<div class="empty-state">${t('noData')}</div>`;
 
-  els.overviewRecordCount.textContent = `${formatCount(totalRecords)} 条`;
+  els.overviewRecordCount.textContent = t('recordsCount', { count: formatCount(totalRecords) });
   const recent = records.slice(0, 10);
   els.overviewRecent.innerHTML = recent.length
     ? recent.map((record) => `
         <tr>
           <td>${esc(formatTime(record.created_at))}</td>
-          <td>${esc(record.model || 'Unknown')}</td>
+          <td>${esc(record.model || t('unknownModel'))}</td>
           <td class="num">${formatCount(record.input_tokens)}</td>
           <td class="num">${formatCount(record.output_tokens)}</td>
           <td class="num">${esc(formatMoney(record.cost_usd))}</td>
-          <td>${record.plan ? `<span class="badge">${esc(record.plan)}</span>` : '—'}</td>
+          <td>${record.plan ? `<span class="badge">${esc(displayPlan(record.plan))}</span>` : '—'}</td>
         </tr>
       `).join('')
     : emptyRow(6);
@@ -399,11 +423,11 @@ function renderTokenStats() {
   const hitRate = cacheRate(totals.uncached, totals.cacheRead, totals.cacheWrite);
 
   els.tokenKpis.innerHTML = [
-    kpi('请求数', formatCount(totals.requests), '本地完整历史', 'wide'),
-    kpi('总 Token', formatTokens(totalTokens), `${formatTokens(totals.uncached)} uncached`, 'wide'),
-    kpi('总费用', formatMoney(totals.cost), '全部记录累计', 'wide'),
-    kpi('缓存命中率', `${hitRate.toFixed(1)}%`, `${formatTokens(totals.cacheRead)} cache read`, 'wide'),
-    kpi('缓存写入', formatTokens(totals.cacheWrite), '5m + 1h 写入', 'wide'),
+    kpi(t('requestsLabel'), formatCount(totals.requests), t('localRecordsSub'), 'wide'),
+    kpi(t('totalTokens'), formatTokens(totalTokens), t('uncachedInputSub', { count: formatTokens(totals.uncached) }), 'wide'),
+    kpi(t('totalCost'), formatMoney(totals.cost), t('localRecordsSub'), 'wide'),
+    kpi(t('cacheHitRate'), `${hitRate.toFixed(1)}%`, t('cacheReadSub', { count: formatTokens(totals.cacheRead) }), 'wide'),
+    kpi(t('cacheWriteTokens'), formatTokens(totals.cacheWrite), t('cacheWriteSub', { count: formatTokens(totals.cacheWrite) }), 'wide'),
   ].join('');
 
   const recentDaily = stats.dailyStats.slice(-14);
@@ -416,7 +440,7 @@ function renderTokenStats() {
         const total = item.total_input_tokens + item.total_output_tokens;
         const height = Math.max(2, Math.round((total / maxDailyTokens) * 100));
         return `
-          <div class="chart-col" title="${esc(item.date)} · ${esc(formatTokens(total))} tokens · ${esc(formatCount(item.request_count))} 次">
+          <div class="chart-col" title="${esc(item.date)} · ${esc(formatTokens(total))} ${t('totalTokens')} · ${esc(t('requestsCount', { count: item.request_count }))}">
             <div class="chart-track">
               <div class="chart-bar" data-height="${height}"></div>
             </div>
@@ -424,9 +448,9 @@ function renderTokenStats() {
           </div>
         `;
       }).join('')
-    : '<div class="empty-state">暂无每日数据</div>';
+    : `<div class="empty-state">${t('noData')}</div>`;
 
-  els.modelStatsCount.textContent = `${stats.modelStats.length} 个模型`;
+  els.modelStatsCount.textContent = t('modelCount', { count: stats.modelStats.length });
   els.modelStatsTable.innerHTML = stats.modelStats.length
     ? stats.modelStats.map((item) => {
         const total = item.total_input_tokens + item.total_output_tokens;
@@ -437,7 +461,7 @@ function renderTokenStats() {
         );
         return `
           <tr>
-            <td>${esc(item.model)}</td>
+            <td>${esc(displayModel(item.model))}</td>
             <td class="num">${formatCount(item.request_count)}</td>
             <td class="num">${formatCount(item.total_input_tokens)}</td>
             <td class="num">${formatCount(item.total_output_tokens)}</td>
@@ -449,7 +473,7 @@ function renderTokenStats() {
           </tr>
         `;
       }).join('')
-    : emptyRow(9);
+    : emptyRow(9, t('noData'));
 
   requestAnimationFrame(() => {
     document.querySelectorAll('.chart-bar[data-height]').forEach((bar) => {
@@ -495,12 +519,12 @@ function renderDaily() {
   );
 
   els.dailyKpis.innerHTML = [
-    kpi('请求数', formatCount(day.request_count), formatDate(selectedDate), 'wide'),
-    kpi('输入', formatTokens(day.total_input_tokens), `${formatTokens(day.uncached_input_tokens)} uncached`, 'wide'),
-    kpi('输出', formatTokens(day.total_output_tokens), '本地记录汇总', 'wide'),
-    kpi('缓存 Token', formatTokens(day.cache_hit_tokens), `${formatTokens(day.cache_write_tokens)} write`, 'wide'),
-    kpi('缓存率', `${rate.toFixed(1)}%`, '输入侧命中比例', 'wide'),
-    kpi('费用', formatMoney(day.total_cost_usd), `${rows.length} 个模型`, 'wide'),
+    kpi(t('requestsLabel'), formatCount(day.request_count), formatDate(selectedDate), 'wide'),
+    kpi(t('input'), formatTokens(day.total_input_tokens), t('uncachedInputSub', { count: formatTokens(day.uncached_input_tokens) }), 'wide'),
+    kpi(t('output'), formatTokens(day.total_output_tokens), t('localRecordsSub'), 'wide'),
+    kpi(t('cacheTokens'), formatTokens(day.cache_hit_tokens), t('cacheWriteSub', { count: formatTokens(day.cache_write_tokens) }), 'wide'),
+    kpi(t('cacheRate'), `${rate.toFixed(1)}%`, t('avgRemainingSub'), 'wide'),
+    kpi(t('cost'), formatMoney(day.total_cost_usd), t('modelCount', { count: rows.length }), 'wide'),
   ].join('');
 
   els.dailyDateLabel.textContent = formatDate(selectedDate);
@@ -517,7 +541,7 @@ function renderDaily() {
         );
         return `
           <tr>
-            <td>${esc(row.model)}</td>
+            <td>${esc(displayModel(row.model))}</td>
             <td class="num">${formatCount(row.request_count)}</td>
             <td class="num">${formatCount(row.total_input_tokens)}</td>
             <td class="num">${formatCount(row.total_output_tokens)}</td>
@@ -528,7 +552,7 @@ function renderDaily() {
           </tr>
         `;
       }).join('')
-    : emptyRow(8, '该日期暂无记录');
+    : emptyRow(8, t('noDailyRecords'));
 }
 
 function renderRecords() {
@@ -545,10 +569,18 @@ function renderRecords() {
     recordsPage * PAGE_SIZE,
     recordsPage * PAGE_SIZE + PAGE_SIZE,
   );
-  const accountName = snapshot?.account?.name || snapshot?.account?.workspace_id || 'Default';
+  const accountName = snapshot?.account?.name
+    || (snapshot?.account?.workspace_id && snapshot.account.workspace_id !== 'Default'
+      ? snapshot.account.workspace_id
+      : t('accountDefault'));
 
-  els.recordsSummary.textContent = `共 ${formatCount(filtered.length)} 条记录${query ? '（已筛选）' : ''}`;
-  els.recordsPageLabel.textContent = `第 ${recordsPage + 1} / ${pages} 页`;
+  els.recordsSummary.textContent = query
+    ? t('filteredSummary', { count: formatCount(filtered.length) })
+    : t('totalSummary', { count: formatCount(filtered.length) });
+  els.recordsPageLabel.textContent = t('pageInfo', {
+    current: recordsPage + 1,
+    total: pages,
+  });
   els.recordsPrevBtn.disabled = recordsPage === 0;
   els.recordsNextBtn.disabled = recordsPage + 1 >= pages;
 
@@ -558,7 +590,7 @@ function renderRecords() {
           <td class="mono">${esc(record.usg_id || '—')}</td>
           <td>${esc(accountName)}</td>
           <td>${esc(formatTime(record.created_at))}</td>
-          <td>${esc(record.model || 'Unknown')}</td>
+          <td>${esc(record.model || t('unknownModel'))}</td>
           <td>${esc(record.provider || '—')}</td>
           <td class="num">${formatCount(record.input_tokens)}</td>
           <td class="num">${formatCount(record.output_tokens)}</td>
@@ -567,20 +599,20 @@ function renderRecords() {
           <td class="num">${formatCount(record.cache_write_tokens)}</td>
           <td class="num">${esc(formatMoney(record.cost_usd))}</td>
           <td class="mono">${esc(record.key_id || '—')}</td>
-          <td>${record.plan ? `<span class="badge">${esc(record.plan)}</span>` : '—'}</td>
+          <td>${record.plan ? `<span class="badge">${esc(displayPlan(record.plan))}</span>` : '—'}</td>
         </tr>
       `).join('')
-    : emptyRow(13, query ? '没有匹配记录' : '暂无使用记录');
+    : emptyRow(13, query ? t('noMatchingRecords') : t('noRecords'));
 }
 
 function renderSyncStatus() {
   const sync = snapshot?.sync || {};
   const totalRecords = records.length || snapshot?.snapshot?.total_records || 0;
   const statusText = sync.last_sync_status === 'error'
-    ? '同步失败'
+    ? t('syncFailed')
     : sync.last_sync_at
-      ? '已同步'
-      : '未同步';
+      ? t('synced')
+      : t('notSynced');
   const statusClass = sync.last_sync_status === 'error'
     ? 'error'
     : sync.last_sync_at
@@ -593,11 +625,11 @@ function renderSyncStatus() {
   els.settingsStatusChip.textContent = statusText;
 
   els.syncStatePanel.innerHTML = [
-    ['last_sync_at', sync.last_sync_at ? formatDateTime(sync.last_sync_at) : '—'],
-    ['last_sync_status', statusText],
-    ['deepest_page', sync.deepest_page ?? '—'],
-    ['总记录数', formatCount(totalRecords)],
-    ['错误信息', sync.last_sync_error || '无'],
+    [t('lastSyncAt'), sync.last_sync_at ? formatDateTime(sync.last_sync_at) : '—'],
+    [t('lastSyncStatus'), statusText],
+    [t('deepestPage'), sync.deepest_page ?? '—'],
+    [t('totalRecords'), formatCount(totalRecords)],
+    [t('errorInfo'), sync.last_sync_error || t('none')],
   ].map(([label, value]) => `
     <div class="sync-state-item">
       <span>${esc(label)}</span>
@@ -619,11 +651,7 @@ function setTheme(theme) {
 }
 
 function setLanguage(language) {
-  const resolved = language === 'en'
-    ? 'en'
-    : language === 'zh'
-      ? 'zh'
-      : navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+  const resolved = globalThis.OpenCodeI18n.setLanguage(language);
   document.documentElement.lang = resolved;
   els.languageSegmented.querySelectorAll('button').forEach((button) => {
     button.classList.toggle('active', button.dataset.language === language);
@@ -638,11 +666,12 @@ function renderSettings() {
   els.quotaRefreshIntervalSec.value = String(current.quotaRefreshIntervalSec || 60);
   setTheme(current.theme || 'system');
   setLanguage(current.language || 'auto');
+  globalThis.OpenCodeI18n.apply();
 }
 
 function renderAccountName() {
   const account = snapshot?.account || null;
-  els.accountName.textContent = account?.name || account?.workspace_id || '尚未识别账户';
+  els.accountName.textContent = account?.name || account?.workspace_id || t('accountUnrecognized');
 }
 
 function renderAll() {
@@ -697,11 +726,13 @@ async function loadSettings() {
   try {
     const response = await sendRuntime({ type: 'GET_SETTINGS' });
     settings = response.settings || {};
+    globalThis.OpenCodeI18n.setLanguage(settings.language || 'auto');
   } catch (error) {
     settings = {};
     console.error('[OpenCodeQME tab] settings load failed', error);
   }
   renderSettings();
+  if (stats) renderAll();
 }
 
 async function updateSettings(patch) {
@@ -711,8 +742,11 @@ async function updateSettings(patch) {
       settings: { ...(settings || {}), ...patch },
     });
     settings = response.settings || {};
+    globalThis.OpenCodeI18n.setLanguage(settings.language || 'auto');
+    globalThis.OpenCodeI18n.apply();
     renderSettings();
-    showToast('设置已保存');
+    renderAll();
+    showToast(t('settingsSaved'));
   } catch (error) {
     showToast(error.message);
   }
@@ -722,11 +756,11 @@ async function runSync() {
   els.syncBtn.classList.add('loading');
   els.syncBtn.disabled = true;
   els.settingsSyncBtn.disabled = true;
-  showToast('正在同步完整历史...');
+  showToast(t('syncingHistory'));
   try {
     await sendRuntime({ type: 'SYNC_NOW', maxPages: Number(settings?.syncPages || 50) });
     await loadAll();
-    showToast('同步完成');
+    showToast(t('syncComplete'));
   } catch (error) {
     showToast(error.message);
   } finally {
@@ -738,7 +772,7 @@ async function runSync() {
 
 async function backToPopup() {
   try {
-    await sendRuntime({ type: 'OPEN_POPUP' });
+    await sendRuntime({ type: 'RETURN_TO_POPUP' });
     window.close();
   } catch (error) {
     showToast(error.message);
@@ -789,14 +823,14 @@ function bindEvents() {
   els.clearHistoryBtn.addEventListener('click', async () => {
     const workspaceId = snapshot?.account?.workspace_id;
     if (!workspaceId) {
-      showToast('还没有可清空的历史');
+      showToast(t('noHistoryToClear'));
       return;
     }
-    if (!window.confirm('确定清空本地完整历史？此操作不可撤销。')) return;
+    if (!window.confirm(t('confirmClearHistory'))) return;
     try {
       await sendRuntime({ type: 'CLEAR_HISTORY', workspace_id: workspaceId });
       await loadAll();
-      showToast('本地历史已清空');
+      showToast(t('historyCleared'));
     } catch (error) {
       showToast(error.message);
     }
@@ -838,6 +872,14 @@ async function init() {
   setInterval(() => {
     void loadAll().catch(() => {});
   }, 60000);
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes['68hub.settings']?.newValue) {
+      settings = changes['68hub.settings'].newValue;
+      globalThis.OpenCodeI18n.setLanguage(settings.language || 'auto');
+      renderSettings();
+      renderAll();
+    }
+  });
 }
 
 init().catch((error) => {
