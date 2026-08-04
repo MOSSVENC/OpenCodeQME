@@ -4,6 +4,7 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
+  readFileSync,
   rmSync,
 } from 'node:fs';
 import path from 'node:path';
@@ -14,8 +15,9 @@ const extensionDir = path.join(root, 'extension');
 const releaseDir = path.join(root, 'release');
 const packRoot = path.join('/tmp', 'opencodeqme-crx-pack');
 const packExtensionDir = path.join(packRoot, 'extension');
-const crxPath = path.join(releaseDir, 'opencodeqme-extension.crx');
 const pemPath = path.join(releaseDir, 'opencodeqme-extension.pem');
+const manifest = JSON.parse(readFileSync(path.join(extensionDir, 'manifest.json'), 'utf8'));
+const crxPath = path.join(releaseDir, `opencodeqme-extension-${manifest.version}.crx`);
 
 execFileSync('node', [path.join(root, 'scripts/build-extension.mjs')], {
   cwd: root,
