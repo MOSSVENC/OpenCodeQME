@@ -380,3 +380,30 @@ interface CurrentAccount {
 | 多账户需求 | 本版明确不做多账户；如未来需要再单独评估 cookie 切换或本地代理方案 |
 | userscript 受页面 CSP 限制 | 先做最小注入验证，再决定是否保留 |
 | 与 `@material/web` 集成成本 | 用 React wrapper 隔离；如果体积或事件绑定不合适，退化为 Tailwind M3 组件库 |
+
+## 11. 当前实现状态
+
+已完成轻量 MV3 扩展原型，入口为 `extension/`：
+
+- `manifest.json`：MV3、popup、content script、storage/tabs 权限。
+- `shared/parsers.js`：配额与使用记录 parser，从 Electron 后端逻辑迁移。
+- `shared/fetchers.js`：同源抓取当前账户配额和使用记录。
+- `shared/history.js`：IndexedDB 完整历史、`usg_id` 去重、同步断点。
+- `background.js`：消息桥、快照缓存、badge、设置持久化。
+- `content.js`：打开 opencode.ai 时自动识别账户并增量/回填同步。
+- `popup.html/css/js`：Material 3 弹窗，包含总览、历史、设置和动画。
+
+构建与验证：
+
+```bash
+npm run test:extension
+npm run build:extension
+```
+
+构建产物为 `release/68hub-material-extension.zip`，也可直接加载 `extension/` 目录。
+
+当前边界：
+
+- 只支持浏览器当前登录的单个 opencode.ai 账户。
+- 自动同步发生在 opencode.ai 页面打开时；未做常驻 alarms。
+- 后续如需页面关闭后继续同步，再升级为 service worker alarms + side panel。

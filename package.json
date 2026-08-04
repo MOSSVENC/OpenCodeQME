@@ -9,6 +9,8 @@
     "dev": "pnpm build:electron && pnpm rebuild:native && concurrently -k \"pnpm dev:vite\" \"wait-on dist-electron/main.js http://localhost:5173 && electron .\"",
     "dev:vite": "vite",
     "build": "pnpm build:vite && pnpm build:electron",
+    "build:extension": "node scripts/build-extension.mjs",
+    "test:extension": "node scripts/test-extension.mjs",
     "build:vite": "vite build",
     "build:electron": "tsc --project electron/tsconfig.json",
     "rebuild:native": "electron-rebuild -f -w better-sqlite3",
