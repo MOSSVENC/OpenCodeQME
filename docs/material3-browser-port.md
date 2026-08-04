@@ -16,6 +16,7 @@
 2. 只做单用户自动识别：浏览器打开 `opencode.ai` 时自动识别当前登录账户和工作区，不提供多账户管理和手动粘贴 cookie。
 3. 优先做篡改猴脚本，因为单用户场景不需要常驻后台，交付最轻；MV3 扩展作为后续可选升级。
 4. 尽量复用现有 React 页面、图表和业务逻辑，避免推倒重写。
+5. 历史数据做完整保存：使用 IndexedDB 存全量使用记录，按 `usg_id` 去重，并保存同步断点。
 
 ## 2. 关键决策
 
@@ -26,7 +27,7 @@
 - 交付物是单个 `.user.js`，不需要 manifest、权限声明和安装目录。
 - 运行在 `https://opencode.ai/*` 页面内，天然是 opencode.ai 同源，可以直接使用当前浏览器 cookie。
 - 不需要 `cookies`、`alarms`、`sidePanel` 等扩展权限。
-- 页面打开时自动识别账户并同步，页面关闭后停止，正好符合“单用户轻量版”的边界。
+- 页面打开时自动识别账户并同步；页面关闭后停止刷新，但 IndexedDB 中的完整历史保留。
 
 MV3 扩展仍然保留为后续可选升级：
 
@@ -65,6 +66,7 @@ src/
     usage-parser.ts       # 从 electron/backend/opencode-usage.ts 提取
     analytics.ts          # 配额级联、聚合、统计
     storage.ts            # StorageProvider 接口
+    history-store.ts      # IndexedDB 历史读写、去重、断点
     fetcher.ts            # DataProvider 接口
   adapters/
     electron.ts           # 现有 HTTP API，保留桌面端
@@ -219,17 +221,65 @@ web/
 1. 把 React 应用打包成单个 IIFE 用户脚本。
 2. `@match https://opencode.ai/*`，注入一个固定定位的 Material 3 面板。
 3. 脚本运行在 opencode.ai 同源页面，用页面 cookie 直接请求同源接口，规避跨域。
-4. 用 `GM_getValue` / `GM_setValue` 保存设置和最近同步状态；完整历史仍建议 IndexedDB。
+4. 用 `GM_getValue` / `GM_setValue` 保存设置和最近同步状态；完整历史使用 IndexedDB。
 5. 页面打开时自动同步，页面关闭后不能保证继续同步。
 6. 配额、使用记录 parser 与扩展共用同一份 domain 代码。
 
-### 6.3 最小功能范围
+### 6.3 单用户自动识别 + 完整历史功能范围
 
 - Dashboard：当前账户配额、今日 Token、最近使用记录。
 - Token 统计：当前账户的模型用量排行。
 - 每日趋势：当前账户的每日统计。
+- 使用记录：完整历史分页、模型/日期统计，数据来自 IndexedDB。
 - 设置：语言、主题、刷新间隔。
 - 不保留：多账户列表、账户新增/删除/测试、自动回填配置、托盘。
+
+### 6.4 完整历史存储设计
+
+使用 IndexedDB 保存全量使用记录，不把完整历史塞进 `GM_getValue` 或 `chrome.storage.local`。
+
+```ts
+interface UsageRecord {
+  usg_id: string;
+  workspace_id: string;
+  created_at: string;
+  model: string;
+  provider: string | null;
+  input_tokens: number;
+  output_tokens: number;
+  uncached_input_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  cost_usd: number;
+  key_id: string | null;
+  plan: string | null;
+  synced_at: string;
+}
+
+interface SyncState {
+  workspace_id: string;
+  deepest_page: number;
+  last_sync_at: string;
+  last_sync_status: 'ok' | 'error';
+}
+```
+
+IndexedDB 设计：
+
+- 表 `usage_records`，主键 `usg_id`，索引 `created_at` 和 `workspace_id`。
+- 每次写入使用 upsert，重复 `usg_id` 直接覆盖，保证完整历史不膨胀。
+- 表 `sync_state`，保存 `deepest_page`、`last_sync_at`、同步状态。
+- 用户脚本运行在 opencode.ai 页面时，页面 IndexedDB 对脚本可用。
+- 后续升级扩展时，把 IndexedDB 放到扩展后台，避免页面清理或 CSP 影响。
+
+同步流程：
+
+1. 读取 `sync_state` 中的 `deepest_page`。
+2. 从第 0 页或断点继续拉取使用记录。
+3. 对每页记录按 `usg_id` upsert 到 IndexedDB。
+4. 如果某页记录全部已存在，停止增量同步。
+5. 更新 `deepest_page` 和 `last_sync_at`。
+6. 页面关闭后记录保留；下次打开继续从断点同步。
 
 主要风险：
 
@@ -246,7 +296,7 @@ web/
 - 不支持 cookie 切换。
 - 不做多账户筛选和“全账户汇总”。
 
-自动识别的数据只保存当前会话信息：
+自动识别的账户信息只保存当前会话信息；使用记录走完整历史 IndexedDB：
 
 ```ts
 interface CurrentAccount {
@@ -261,7 +311,7 @@ interface CurrentAccount {
 1. 先读取 `chrome.storage` / `GM_getValue` 中的上次识别结果。
 2. 从 URL 或当前 cookie 重新确认工作区。
 3. 如果当前 cookie 已失效，显示“未登录 opencode.ai”，并引导用户重新登录。
-4. 成功后刷新配额和使用记录。
+4. 成功后刷新配额，并从断点继续同步完整使用记录。
 
 ## 8. 实施阶段
 
@@ -290,6 +340,7 @@ interface CurrentAccount {
 
 - 新增 Vite 用户脚本构建入口。
 - 实现 `https://opencode.ai/*` 自动识别当前工作区。
+- 实现 IndexedDB 完整历史存储、`usg_id` 去重、断点同步和手动回填。
 - 用同一套 UI 和 domain 代码打包 `.user.js`。
 - 验证 opencode.ai CSP 兼容性、浮层布局和同源抓取。
 
@@ -313,8 +364,9 @@ interface CurrentAccount {
 2. UI 明显符合 Material 3：正确使用 token、state layer、elevation、shape、type。
 3. 用户脚本在打开 opencode.ai 时能自动识别当前登录账户和工作区。
 4. 不要求用户手动输入 auth cookie，也不需要多账户管理。
-5. 历史数据不会超过浏览器存储限制，不会把 cookie 明文暴露给页面。
-6. 中英文、明暗主题、窄屏布局可用。
+5. 完整历史按 `usg_id` 去重，使用记录分页和统计均基于 IndexedDB。
+6. 历史数据不会把 cookie 明文暴露给页面，页面关闭后历史仍保留。
+7. 中英文、明暗主题、窄屏布局可用。
 
 ## 10. 风险与对策
 
@@ -323,7 +375,8 @@ interface CurrentAccount {
 | opencode.ai 页面结构改版，parser 失效 | parser 集中管理，加入 fixture 测试和版本记录 |
 | 浏览器禁止设置 `Cookie`/`Origin` 等 header | 优先使用同源页面或扩展 cookie 能力，提前做兼容性 spike |
 | MV3 service worker 生命周期短 | 使用 alarm + 打开 UI 时按需刷新，不做无限常驻轮询 |
-| 历史使用记录体积大 | 使用 IndexedDB，限制同步页数，提供回填入口 |
+| 历史使用记录体积大 | 使用 IndexedDB 存全量记录，不用 `chrome.storage`/GM 小存储承载历史 |
+| 浏览器可能清理 IndexedDB | 用户脚本请求 `navigator.storage.persist()`；扩展版把 IndexedDB 放扩展后台 |
 | 多账户需求 | 本版明确不做多账户；如未来需要再单独评估 cookie 切换或本地代理方案 |
 | userscript 受页面 CSP 限制 | 先做最小注入验证，再决定是否保留 |
 | 与 `@material/web` 集成成本 | 用 React wrapper 隔离；如果体积或事件绑定不合适，退化为 Tailwind M3 组件库 |
