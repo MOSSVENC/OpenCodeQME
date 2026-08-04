@@ -1,6 +1,7 @@
 importScripts('shared/parsers.js', 'shared/fetchers.js', 'shared/history.js');
 
 const SYNC_ALARM = '68hub-sync';
+const QUOTA_ALARM = '68hub-quota';
 const OPENCODE_URL = 'https://opencode.ai';
 
 const DEFAULT_SETTINGS = {
@@ -303,10 +304,40 @@ async function syncOnce({ maxPages = 10, includeUpdates = true } = {}) {
   }
 }
 
+async function refreshQuotaOnly() {
+  if (syncing) return { skipped: true };
+  syncing = true;
+  try {
+    const stored = await chrome.storage.local.get(KEY_ACCOUNT);
+    const existing = stored[KEY_ACCOUNT] || null;
+    const account = existing?.workspace_id
+      ? { workspace_id: existing.workspace_id, name: existing.name || 'OpenCode' }
+      : await OpenCodeFetcher.identifyAccount('Default');
+    const quota = await OpenCodeFetcher.fetchQuota(account.workspace_id);
+    await chrome.storage.local.set({
+      [KEY_ACCOUNT]: {
+        ...account,
+        recognized_at: existing?.recognized_at || new Date().toISOString(),
+      },
+      [KEY_QUOTA]: quota,
+    });
+    await chrome.storage.local.remove(KEY_SNAPSHOT);
+    await refreshSnapshot();
+    updateBadge(quota);
+    return { ok: true };
+  } finally {
+    syncing = false;
+  }
+}
+
 async function scheduleAlarm() {
   const settings = await getSettings();
   if (!settings.autoSync) {
     await chrome.alarms.create(SYNC_ALARM, {
+      delayInMinutes: 0.5,
+      periodInMinutes: 30,
+    });
+    await chrome.alarms.create(QUOTA_ALARM, {
       delayInMinutes: 0.5,
       periodInMinutes: 30,
     });
@@ -316,8 +347,15 @@ async function scheduleAlarm() {
     0.5,
     Number(settings.usageSyncIntervalSec || 300) / 60,
   );
+  const quotaIntervalMinutes = Math.max(
+    0.5,
+    Number(settings.quotaRefreshIntervalSec || 60) / 60,
+  );
   await chrome.alarms.create(SYNC_ALARM, {
     periodInMinutes: intervalMinutes,
+  });
+  await chrome.alarms.create(QUOTA_ALARM, {
+    periodInMinutes: quotaIntervalMinutes,
   });
 }
 
@@ -375,22 +413,32 @@ chrome.runtime.onInstalled.addListener(async () => {
   if (navigator.storage?.persist) {
     await navigator.storage.persist();
   }
-  void syncOnce({ maxPages: DEFAULT_SETTINGS.syncPages });
+  void syncOnce({ maxPages: DEFAULT_SETTINGS.syncPages }).catch((error) => {
+    console.error('[68hub initial sync failed]', error);
+  });
 });
 
 chrome.runtime.onStartup.addListener(async () => {
   await scheduleAlarm();
   const settings = await getSettings();
   if (settings.autoSync) {
-    void syncOnce({ maxPages: settings.syncPages });
+    void syncOnce({ maxPages: settings.syncPages }).catch((error) => {
+      console.error('[68hub startup sync failed]', error);
+    });
   }
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name !== SYNC_ALARM) return;
   void getSettings().then((settings) => {
-    if (settings.autoSync) {
-      void syncOnce({ maxPages: settings.syncPages });
+    if (!settings.autoSync) return;
+    if (alarm.name === SYNC_ALARM) {
+      void syncOnce({ maxPages: settings.syncPages }).catch((error) => {
+        console.error('[68hub scheduled sync failed]', error);
+      });
+    } else if (alarm.name === QUOTA_ALARM) {
+      void refreshQuotaOnly().catch((error) => {
+        console.error('[68hub quota refresh failed]', error);
+      });
     }
   });
 });
