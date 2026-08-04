@@ -221,7 +221,7 @@ function renderSnapshot() {
     els.quotaSub.textContent = t('availableSuffix', { label: effective.label });
   } else {
     els.quotaValue.textContent = '—';
-    els.quotaSub.textContent = quota?.error || t('currentAccount');
+    els.quotaSub.textContent = quota?.error || t('currentWorkspace');
   }
 
   const syncLabel = sync?.last_sync_status === 'error'

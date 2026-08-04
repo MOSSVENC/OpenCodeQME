@@ -51,6 +51,7 @@ const els = {
   recordsSummary: $('#recordsSummary'),
   recordsFilter: $('#recordsFilter'),
   recordTabs: $('#recordTabs'),
+  recordPageTabs: $('#recordPageTabs'),
   recordsRefreshBtn: $('#recordsRefreshBtn'),
   recordsPageLabel: $('#recordsPageLabel'),
   recordsTable: $('#recordsTable'),
@@ -345,7 +346,7 @@ function renderOverview() {
   const totalRecords = records.length || snapshot?.snapshot?.total_records || 0;
 
   els.overviewKpis.innerHTML = [
-    kpi(t('currentAccount'), accountLabel, account
+    kpi(t('currentWorkspace'), accountLabel, account
       ? t('availableBlocked', { available, blocked })
       : t('waitingAccountSync')),
     kpi(t('avgRemainingQuota'), `${averageRemaining.toFixed(1)}%`, t('avgRemainingSub')),
@@ -637,6 +638,29 @@ function renderRecordTabs() {
   });
 }
 
+function renderRecordPageTabs(pages) {
+  const visible = 10;
+  const start = Math.max(0, Math.min(recordsPage - Math.floor(visible / 2), pages - visible));
+  const end = Math.min(pages, start + visible);
+  let html = '';
+  for (let page = start; page < end; page += 1) {
+    html += `
+      <button
+        class="record-page-tab ${page === recordsPage ? 'active' : ''}"
+        type="button"
+        data-page="${page + 1}"
+      >${page + 1}</button>
+    `;
+  }
+  els.recordPageTabs.innerHTML = html;
+  els.recordPageTabs.querySelectorAll('[data-page]').forEach((button) => {
+    button.addEventListener('click', () => {
+      recordsPage = Number(button.dataset.page) - 1;
+      renderRecords();
+    });
+  });
+}
+
 function renderRecords() {
   renderRecordTabs();
   const query = els.recordsFilter.value.trim().toLowerCase();
@@ -655,6 +679,7 @@ function renderRecords() {
   });
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   recordsPage = Math.min(recordsPage, pages - 1);
+  renderRecordPageTabs(pages);
   const pageRecords = filtered.slice(
     recordsPage * PAGE_SIZE,
     recordsPage * PAGE_SIZE + PAGE_SIZE,
