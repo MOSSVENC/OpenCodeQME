@@ -50,6 +50,7 @@ const els = {
   dailyModelTable: $('#dailyModelTable'),
   recordsSummary: $('#recordsSummary'),
   recordsFilter: $('#recordsFilter'),
+  recordTabs: $('#recordTabs'),
   recordsRefreshBtn: $('#recordsRefreshBtn'),
   recordsPageLabel: $('#recordsPageLabel'),
   recordsTable: $('#recordsTable'),
@@ -75,6 +76,8 @@ let stats = null;
 let settings = null;
 let selectedDate = '';
 let recordsPage = 0;
+let recordCategory = 'all';
+let recordCategoryValue = '';
 let toastTimer = null;
 let pageTransitionTimer = null;
 
@@ -564,14 +567,92 @@ function renderDaily() {
     : emptyRow(8, t('noDailyRecords'));
 }
 
+function recordCategoryValues(category) {
+  const counts = new Map();
+  for (const record of records) {
+    const value = category === 'model'
+      ? displayModel(record.model)
+      : displayPlan(record.plan);
+    if (!value || value === '—') continue;
+    counts.set(value, (counts.get(value) || 0) + 1);
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+}
+
+function renderRecordTabs() {
+  const categories = [
+    { key: 'all', label: t('all') },
+    { key: 'model', label: t('model') },
+    { key: 'plan', label: t('plan') },
+  ];
+  const categoryTabs = categories.map((item) => `
+    <button
+      class="record-tab ${recordCategory === item.key ? 'active' : ''}"
+      type="button"
+      data-category="${item.key}"
+    >${esc(item.label)}</button>
+  `).join('');
+
+  let valueTabs = `<span class="record-tab-note">${t('allRecords')}</span>`;
+  if (recordCategory !== 'all') {
+    const values = recordCategoryValues(recordCategory);
+    if (!values.some(([value]) => value === recordCategoryValue)) {
+      recordCategoryValue = values[0]?.[0] || '';
+    }
+    valueTabs = values.length
+      ? values.map(([value, count]) => `
+          <button
+            class="record-chip ${recordCategoryValue === value ? 'active' : ''}"
+            type="button"
+            data-category-value="${esc(value)}"
+          >${esc(value)} <span>${count}</span></button>
+        `).join('')
+      : `<span class="record-tab-note">${t('allRecords')}</span>`;
+  }
+
+  els.recordTabs.innerHTML = `
+    <div class="record-category-tabs">${categoryTabs}</div>
+    <div class="record-value-tabs">${valueTabs}</div>
+  `;
+
+  els.recordTabs.querySelectorAll('[data-category]').forEach((button) => {
+    button.addEventListener('click', () => {
+      recordCategory = button.dataset.category;
+      if (recordCategory === 'all') {
+        recordCategoryValue = '';
+      } else {
+        const values = recordCategoryValues(recordCategory);
+        recordCategoryValue = values[0]?.[0] || '';
+      }
+      recordsPage = 0;
+      renderRecords();
+    });
+  });
+  els.recordTabs.querySelectorAll('[data-category-value]').forEach((button) => {
+    button.addEventListener('click', () => {
+      recordCategoryValue = button.dataset.categoryValue;
+      recordsPage = 0;
+      renderRecords();
+    });
+  });
+}
+
 function renderRecords() {
+  renderRecordTabs();
   const query = els.recordsFilter.value.trim().toLowerCase();
-  const filtered = query
-    ? records.filter((record) =>
-        [record.model, record.provider, record.usg_id]
-          .some((value) => String(value || '').toLowerCase().includes(query)),
-      )
-    : records;
+  const filtered = records.filter((record) => {
+    const matchesQuery = !query
+      || [record.model, record.usg_id]
+        .some((value) => String(value || '').toLowerCase().includes(query));
+    if (!matchesQuery) return false;
+    if (recordCategory === 'model' && recordCategoryValue) {
+      return displayModel(record.model) === recordCategoryValue;
+    }
+    if (recordCategory === 'plan' && recordCategoryValue) {
+      return displayPlan(record.plan) === recordCategoryValue;
+    }
+    return true;
+  });
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   recordsPage = Math.min(recordsPage, pages - 1);
   const pageRecords = filtered.slice(
@@ -580,7 +661,7 @@ function renderRecords() {
   );
   const accountName = displayAccountName(snapshot?.account);
 
-  els.recordsSummary.textContent = query
+  els.recordsSummary.textContent = query || recordCategory !== 'all'
     ? t('filteredSummary', { count: formatCount(filtered.length) })
     : t('totalSummary', { count: formatCount(filtered.length) });
   els.recordsPageLabel.textContent = t('pageInfo', {
@@ -597,7 +678,6 @@ function renderRecords() {
           <td>${esc(accountName)}</td>
           <td>${esc(formatTime(record.created_at))}</td>
           <td>${esc(record.model || t('unknownModel'))}</td>
-          <td>${esc(record.provider || t('unknownProvider'))}</td>
           <td class="num">${formatCount(record.input_tokens)}</td>
           <td class="num">${formatCount(record.output_tokens)}</td>
           <td class="num">${formatCount(record.uncached_input_tokens ?? record.input_tokens)}</td>
@@ -608,7 +688,7 @@ function renderRecords() {
           <td>${record.plan ? `<span class="badge">${esc(displayPlan(record.plan))}</span>` : '—'}</td>
         </tr>
       `).join('')
-    : emptyRow(13, query ? t('noMatchingRecords') : t('noRecords'));
+    : emptyRow(12, query || recordCategory !== 'all' ? t('noMatchingRecords') : t('noRecords'));
 }
 
 function renderSyncStatus() {
