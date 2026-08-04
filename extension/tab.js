@@ -753,6 +753,7 @@ function renderSettings() {
   setTheme(current.theme || 'system');
   setLanguage(current.language || 'auto');
   globalThis.OpenCodeI18n.apply();
+  requestAnimationFrame(updateNavIndicator);
 }
 
 function renderAccountName() {
@@ -762,13 +763,17 @@ function renderAccountName() {
     : t('accountUnrecognized');
 }
 
-function renderAll() {
+function renderAll(animate = true) {
+  document.documentElement.classList.toggle('no-animate', !animate);
   renderAccountName();
   renderOverview();
   renderTokenStats();
   renderDaily();
   renderRecords();
   renderSyncStatus();
+  requestAnimationFrame(() => {
+    document.documentElement.classList.remove('no-animate');
+  });
 }
 
 function showToast(message) {
@@ -809,9 +814,21 @@ function switchPage(page) {
     current.classList.remove('active', 'page-exit', 'page-exit-forward', 'page-exit-back');
     next.classList.remove('page-enter-forward', 'page-enter-back');
   }, 360);
+  updateNavIndicator();
 }
 
-async function loadAll() {
+function updateNavIndicator() {
+  const nav = document.querySelector('.nav-tabs');
+  const indicator = document.querySelector('.nav-indicator');
+  const active = document.querySelector('.nav-tab.active');
+  if (!nav || !indicator || !active) return;
+  const navRect = nav.getBoundingClientRect();
+  const rect = active.getBoundingClientRect();
+  indicator.style.left = `${rect.left - navRect.left}px`;
+  indicator.style.width = `${rect.width}px`;
+}
+
+async function loadAll(animate = true) {
   try {
     const [snapshotResponse, recordsResponse] = await Promise.all([
       sendRuntime({ type: 'GET_SNAPSHOT' }),
@@ -827,7 +844,7 @@ async function loadAll() {
     records = [];
     stats = computeStats(records);
   }
-  renderAll();
+  renderAll(animate);
 }
 
 async function loadSettings() {
@@ -840,7 +857,7 @@ async function loadSettings() {
     console.error('[OpenCodeQME tab] settings load failed', error);
   }
   renderSettings();
-  if (stats) renderAll();
+  if (stats) renderAll(false);
 }
 
 async function updateSettings(patch) {
@@ -853,7 +870,7 @@ async function updateSettings(patch) {
     globalThis.OpenCodeI18n.setLanguage(settings.language || 'auto');
     globalThis.OpenCodeI18n.apply();
     renderSettings();
-    renderAll();
+    renderAll(false);
     showToast(t('settingsSaved'));
   } catch (error) {
     showToast(error.message);
@@ -867,7 +884,7 @@ async function runSync() {
   showToast(t('syncingHistory'));
   try {
     await sendRuntime({ type: 'SYNC_NOW', maxPages: Number(settings?.syncPages || 50) });
-    await loadAll();
+    await loadAll(false);
     showToast(t('syncComplete'));
   } catch (error) {
     showToast(error.message);
@@ -937,7 +954,7 @@ function bindEvents() {
     if (!window.confirm(t('confirmClearHistory'))) return;
     try {
       await sendRuntime({ type: 'CLEAR_HISTORY', workspace_id: workspaceId });
-      await loadAll();
+      await loadAll(false);
       showToast(t('historyCleared'));
     } catch (error) {
       showToast(error.message);
@@ -971,21 +988,23 @@ function bindEvents() {
     recordsPage = 0;
     renderRecords();
   });
-  els.recordsRefreshBtn.addEventListener('click', () => loadAll());
+  els.recordsRefreshBtn.addEventListener('click', () => loadAll(false));
 }
 
 async function init() {
   bindEvents();
   await Promise.all([loadSettings(), loadAll()]);
+  window.addEventListener('resize', updateNavIndicator);
+  requestAnimationFrame(updateNavIndicator);
   setInterval(() => {
-    void loadAll().catch(() => {});
+    void loadAll(false).catch(() => {});
   }, 60000);
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && changes['68hub.settings']?.newValue) {
       settings = changes['68hub.settings'].newValue;
       globalThis.OpenCodeI18n.setLanguage(settings.language || 'auto');
       renderSettings();
-      renderAll();
+      renderAll(false);
     }
   });
 }
