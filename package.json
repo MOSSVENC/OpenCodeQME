@@ -1,111 +1,13 @@
 {
   "name": "opencodeqme",
-  "version": "1.1.3",
+  "version": "0.1.0",
   "description": "OpenCode Quota Monitor Extension",
-  "main": "dist-electron/main.js",
   "author": "OpenCodeQME",
   "license": "MIT",
   "scripts": {
-    "dev": "pnpm build:electron && pnpm rebuild:native && concurrently -k \"pnpm dev:vite\" \"wait-on dist-electron/main.js http://localhost:5173 && electron .\"",
-    "dev:vite": "vite",
-    "build": "pnpm build:vite && pnpm build:electron",
     "build:extension": "node scripts/build-extension.mjs",
     "build:crx": "node scripts/pack-extension-crx.mjs",
     "mock:opencode": "node scripts/mock-opencode-server.mjs",
-    "test:extension": "node scripts/test-extension.mjs",
-    "build:vite": "vite build",
-    "build:electron": "tsc --project electron/tsconfig.json",
-    "rebuild:native": "electron-rebuild -f -w better-sqlite3",
-    "dist": "pnpm build && pnpm rebuild:native && npx --yes electron-builder@25",
-    "dist:dir": "pnpm build && pnpm rebuild:native && npx --yes electron-builder@25 --dir",
-    "postinstall": "pnpm build:electron",
-    "preview": "vite preview",
-    "electron": "electron ."
-  },
-  "build": {
-    "appId": "com.opencodeqme.app",
-    "productName": "OpenCodeQME",
-    "directories": {
-      "output": "release"
-    },
-    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
-    "npmRebuild": false,
-    "files": [
-      "dist/**/*",
-      "dist-electron/**/*",
-      "public/**/*",
-      "node_modules/better-sqlite3/**/*",
-      "node_modules/bindings/**/*",
-      "node_modules/file-uri-to-path/**/*"
-    ],
-    "asarUnpack": [
-      "node_modules/better-sqlite3/**/*"
-    ],
-    "win": {
-      "icon": "public/icon.png",
-      "target": [
-        { "target": "nsis", "arch": ["x64"] }
-      ]
-    },
-    "mac": {
-      "icon": "public/icon.png",
-      "target": [
-        { "target": "dmg", "arch": ["arm64", "x64"] }
-      ]
-    },
-    "linux": {
-      "icon": "public/icon.png",
-      "target": [
-        { "target": "AppImage", "arch": ["x64"] }
-      ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "OpenCodeQME",
-      "language": "2052",
-      "unicode": true,
-      "installerIcon": "public/icon.ico",
-      "uninstallerIcon": "public/icon.ico"
-    }
-  },
-  "keywords": [
-    "electron",
-    "react",
-    "vite",
-    "opencode",
-    "go"
-  ],
-  "devDependencies": {
-    "@electron/rebuild": "^4.2.0",
-    "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^20.14.0",
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.0",
-    "concurrently": "^8.2.2",
-    "electron": "^31.0.0",
-    "sharp": "^0.35.3",
-    "typescript": "^5.4.5",
-    "vite": "^5.2.12",
-    "wait-on": "^7.2.0"
-  },
-  "dependencies": {
-    "@hono/node-server": "^2.0.10",
-    "@tailwindcss/vite": "^4.3.2",
-    "better-sqlite3": "^12.11.1",
-    "daisyui": "^5.6.17",
-    "hono": "^4.12.30",
-    "i18next": "^26.3.6",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-i18next": "^17.0.10",
-    "react-router-dom": "^7.18.1",
-    "recharts": "^3.9.2",
-    "tailwindcss": "^4.3.2",
-    "zod": "^4.4.3"
+    "test:extension": "node scripts/test-extension.mjs"
   }
 }
