@@ -166,12 +166,6 @@ async function refreshSnapshot() {
   return payload;
 }
 
-function safeRefreshSnapshot() {
-  return refreshSnapshot().catch((error) => {
-    console.error('[68hub snapshot refresh failed]', error);
-  });
-}
-
 function updateBadge(quota) {
   if (!quota || !chrome.action) return;
   const windows = quota.windows || [];
@@ -199,13 +193,13 @@ async function handleMessage(message) {
   switch (message?.type) {
     case 'SAVE_ACCOUNT': {
       await chrome.storage.local.set({ [KEY_ACCOUNT]: message.account });
-      void safeRefreshSnapshot();
+      await chrome.storage.local.remove(KEY_SNAPSHOT);
       return {};
     }
     case 'SAVE_QUOTA': {
       await chrome.storage.local.set({ [KEY_QUOTA]: message.quota });
       updateBadge(message.quota);
-      void safeRefreshSnapshot();
+      await chrome.storage.local.remove(KEY_SNAPSHOT);
       return {};
     }
     case 'SAVE_USAGE': {
@@ -213,7 +207,7 @@ async function handleMessage(message) {
       await HistoryStore.saveSyncState(message.sync_state);
       await saveLocalSyncState(message.sync_state);
       await appendRecordCache(message.workspace_id, message.records || []);
-      void safeRefreshSnapshot();
+      await chrome.storage.local.remove(KEY_SNAPSHOT);
       return {};
     }
     case 'GET_STATE': {
@@ -221,9 +215,7 @@ async function handleMessage(message) {
       return { state };
     }
     case 'GET_SNAPSHOT': {
-      const stored = await chrome.storage.local.get(KEY_SNAPSHOT);
-      if (stored[KEY_SNAPSHOT]) return { snapshot: stored[KEY_SNAPSHOT] };
-      const snapshot = await safeRefreshSnapshot();
+      const snapshot = await refreshSnapshot();
       return { snapshot };
     }
     case 'GET_SETTINGS': {
@@ -253,7 +245,7 @@ async function handleMessage(message) {
       delete next[message.workspace_id];
       await chrome.storage.local.set({ [KEY_SYNC_STATE]: next });
       await clearRecordCache(message.workspace_id);
-      void safeRefreshSnapshot();
+      await chrome.storage.local.remove(KEY_SNAPSHOT);
       return {};
     }
     default:

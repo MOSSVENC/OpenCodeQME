@@ -1,6 +1,14 @@
 (() => {
   let syncing = false;
 
+  function notifyBackground(message) {
+    try {
+      chrome.runtime.sendMessage(message, () => {});
+    } catch {
+      // storage notifications must not block usage fetching
+    }
+  }
+
   function sendToBackground(message) {
     return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(message, (response) => {
@@ -28,24 +36,11 @@
     return stored['68hub.settings'] || {};
   }
 
-  async function fetchAndSavePage(workspaceId, page, syncAt) {
+  async function fetchPage(workspaceId, page, syncAt) {
     const records = await OpenCodeFetcher.fetchUsagePage(workspaceId, page);
-    if (records.length) {
-      for (const record of records) {
-        record.workspace_id = workspaceId;
-        record.synced_at = syncAt;
-      }
-      await sendToBackground({
-        type: 'SAVE_USAGE',
-        workspace_id: workspaceId,
-        records,
-        sync_state: {
-          workspace_id: workspaceId,
-          deepest_page: page,
-          last_sync_at: syncAt,
-          last_sync_status: 'ok',
-        },
-      });
+    for (const record of records) {
+      record.workspace_id = workspaceId;
+      record.synced_at = syncAt;
     }
     return records;
   }
@@ -61,50 +56,29 @@
       const hint = workspaceFromUrl() || 'Default';
       const account = await OpenCodeFetcher.identifyAccount(hint);
       const workspaceId = account.workspace_id;
-
-      await sendToBackground({
-        type: 'SAVE_ACCOUNT',
-        account: {
-          workspace_id: workspaceId,
-          name: account.name,
-          recognized_at: syncAt,
-        },
-      });
-
       const quota = await OpenCodeFetcher.fetchQuota(workspaceId);
-      await sendToBackground({ type: 'SAVE_QUOTA', quota });
 
-      const stateResponse = await sendToBackground({
-        type: 'GET_STATE',
-        workspace_id: workspaceId,
-      });
-      const state = stateResponse.state || null;
+      const storedState = await chrome.storage.local.get('68hub.sync_state');
+      const state = storedState['68hub.sync_state']?.[workspaceId] || null;
       const deepest = state && Number.isFinite(Number(state.deepest_page))
         ? Number(state.deepest_page)
         : -1;
       let reachedEnd = Boolean(state?.reached_end);
+      let deepestPage = deepest;
+      const allRecords = [];
 
       const updatePages = includeUpdates && deepest >= 0
         ? Math.min(deepest + 1, 5)
         : 0;
       for (let page = 0; page < updatePages; page += 1) {
-        const records = await fetchAndSavePage(workspaceId, page, syncAt);
+        const records = await fetchPage(workspaceId, page, syncAt);
         pagesFetched += 1;
         recordsWritten += records.length;
+        allRecords.push(...records);
+        deepestPage = Math.max(deepestPage, page);
         if (!records.length) {
           reachedEnd = true;
-          await sendToBackground({
-            type: 'SAVE_USAGE',
-            workspace_id: workspaceId,
-            records: [],
-            sync_state: {
-              workspace_id: workspaceId,
-              deepest_page: page,
-              last_sync_at: syncAt,
-              last_sync_status: 'ok',
-              reached_end: true,
-            },
-          });
+          deepestPage = page;
           break;
         }
       }
@@ -114,28 +88,40 @@
         const startPage = Math.max(0, deepest + 1);
         let page = startPage;
         while (page < startPage + limit) {
-          const records = await fetchAndSavePage(workspaceId, page, syncAt);
+          const records = await fetchPage(workspaceId, page, syncAt);
           pagesFetched += 1;
           recordsWritten += records.length;
+          allRecords.push(...records);
+          deepestPage = page;
           if (!records.length) {
             reachedEnd = true;
-            await sendToBackground({
-              type: 'SAVE_USAGE',
-              workspace_id: workspaceId,
-              records: [],
-              sync_state: {
-                workspace_id: workspaceId,
-                deepest_page: page,
-                last_sync_at: syncAt,
-                last_sync_status: 'ok',
-                reached_end: true,
-              },
-            });
             break;
           }
           page += 1;
         }
       }
+
+      await sendToBackground({
+        type: 'SAVE_ACCOUNT',
+        account: {
+          workspace_id: workspaceId,
+          name: account.name,
+          recognized_at: syncAt,
+        },
+      });
+      await sendToBackground({ type: 'SAVE_QUOTA', quota });
+      await sendToBackground({
+        type: 'SAVE_USAGE',
+        workspace_id: workspaceId,
+        records: allRecords,
+        sync_state: {
+          workspace_id: workspaceId,
+          deepest_page: Math.max(deepest, deepestPage),
+          last_sync_at: syncAt,
+          last_sync_status: 'ok',
+          reached_end: reachedEnd,
+        },
+      });
 
       return {
         workspace_id: workspaceId,
@@ -148,7 +134,7 @@
       const message = String(error?.message || error);
       try {
         const workspaceId = workspaceFromUrl() || 'unknown';
-        await sendToBackground({
+        notifyBackground({
           type: 'SAVE_USAGE',
           workspace_id: workspaceId,
           records: [],

@@ -1,13 +1,15 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import http from 'node:http';
 import https from 'node:https';
 
 const KEY_PATH = '/tmp/68hub-opencode-key.pem';
 const CERT_PATH = '/tmp/68hub-opencode-cert.pem';
 const HOST = '127.0.0.1';
-const PORT = 8443;
+const PORT = Number(process.env.MOCK_PORT || 8443);
+const USE_HTTP = process.env.MOCK_HTTP === '1';
 
-if (!existsSync(KEY_PATH) || !existsSync(CERT_PATH)) {
+if (!USE_HTTP && (!existsSync(KEY_PATH) || !existsSync(CERT_PATH))) {
   execFileSync('openssl', [
     'req',
     '-x509',
@@ -49,12 +51,10 @@ function usagePage(page) {
       $R[1]={id:"usg_3",model:"gpt-5",inputTokens:8,outputTokens:4,cacheReadTokens:0,cacheWrite5mTokens:0,cacheWrite1hTokens:0,cost:500000,timeCreated:$R[2]=new Date("2026-08-03T00:00:00.000Z")}
     `;
   }
-  return '';
+  return '{}';
 }
 
-const server = https.createServer(
-  { key: readFileSync(KEY_PATH), cert: readFileSync(CERT_PATH) },
-  (req, res) => {
+const handler = (req, res) => {
     const url = new URL(req.url, `https://${req.headers.host}`);
     console.log(`[mock] ${req.method} ${url.pathname}${url.search}`);
     const serverId = url.searchParams.get('id');
@@ -87,9 +87,18 @@ const server = https.createServer(
       'Access-Control-Allow-Origin': '*',
     });
     res.end(payload);
-  },
-);
+    console.log(`[mock] -> ${url.pathname} ${payload.length} bytes`);
+  };
+
+const server = USE_HTTP
+  ? http.createServer(handler)
+  : https.createServer(
+      { key: readFileSync(KEY_PATH), cert: readFileSync(CERT_PATH) },
+      handler,
+    );
 
 server.listen(PORT, HOST, () => {
-  console.log(`mock opencode.ai listening on https://${HOST}:${PORT}`);
+  console.log(
+    `mock opencode.ai listening on ${USE_HTTP ? 'http' : 'https'}://${HOST}:${PORT}`,
+  );
 });
