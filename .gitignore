@@ -7,6 +7,7 @@ dist
 dist-electron
 release
 out
+*.pem
 
 # Local env files
 *.local

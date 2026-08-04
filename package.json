@@ -10,6 +10,7 @@
     "dev:vite": "vite",
     "build": "pnpm build:vite && pnpm build:electron",
     "build:extension": "node scripts/build-extension.mjs",
+    "build:crx": "node scripts/pack-extension-crx.mjs",
     "mock:opencode": "node scripts/mock-opencode-server.mjs",
     "test:extension": "node scripts/test-extension.mjs",
     "build:vite": "vite build",
