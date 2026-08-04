@@ -13,19 +13,10 @@ const els = {
   quotaList: $('#quotaList'),
   recentList: $('#recentList'),
   recordCount: $('#recordCount'),
-  modelStats: $('#modelStats'),
-  modelCount: $('#modelCount'),
-  dailyStats: $('#dailyStats'),
-  autoSync: $('#autoSync'),
-  syncPages: $('#syncPages'),
-  backfillBtn: $('#backfillBtn'),
-  clearHistoryBtn: $('#clearHistoryBtn'),
-  openSiteBtn: $('#openSiteBtn'),
-  snackbar: $('#snackbar'),
+  detailBtn: $('#detailBtn'),
 };
 
 let currentSnapshot = null;
-let currentSettings = null;
 const numberAnimations = new Map();
 
 function sendRuntime(message) {
@@ -121,15 +112,6 @@ function status(message, type = '') {
   els.statusText.textContent = message;
 }
 
-function snackbar(message) {
-  els.snackbar.textContent = message;
-  els.snackbar.classList.add('show');
-  clearTimeout(snackbar.timer);
-  snackbar.timer = setTimeout(() => {
-    els.snackbar.classList.remove('show');
-  }, 2400);
-}
-
 function effectiveQuota(quota) {
   const windows = quota?.windows || [];
   const rolling = windows.find((item) => item.label === '5h Rolling');
@@ -139,7 +121,7 @@ function effectiveQuota(quota) {
   if (!source) return null;
   return {
     used: Math.round(Number(source.used || 0)),
-    remaining: Math.round(Number(source.remaining || 0)),
+    remaining: Math.round(Number(source.effective_remaining ?? source.remaining ?? 0)),
     label: source.label,
   };
 }
@@ -189,7 +171,7 @@ function renderRecent() {
     return;
   }
 
-  els.recentList.innerHTML = records.slice(0, 8).map((record, index) => `
+  els.recentList.innerHTML = records.slice(0, 3).map((record, index) => `
     <div class="record-item" style="animation-delay:${index * 35}ms">
       <span class="record-model">${esc(record.model || 'Unknown')}</span>
       <span class="record-tokens">${formatTokens((record.input_tokens || 0) + (record.output_tokens || 0))}</span>
@@ -201,61 +183,6 @@ function renderRecent() {
   `).join('');
 }
 
-function renderStats() {
-  const modelStats = currentSnapshot?.snapshot?.model_stats || [];
-  const dailyStats = currentSnapshot?.snapshot?.daily_stats || [];
-  els.modelCount.textContent = `${modelStats.length} 个模型`;
-
-  if (!modelStats.length) {
-    els.modelStats.innerHTML = '<div class="empty-state">暂无模型数据</div>';
-  } else {
-    const maxTokens = Math.max(...modelStats.map((item) => (item.input_tokens || 0) + (item.output_tokens || 0)), 1);
-    els.modelStats.innerHTML = modelStats.slice(0, 6).map((item, index) => {
-      const total = (item.input_tokens || 0) + (item.output_tokens || 0);
-      const width = Math.max(4, Math.round((total / maxTokens) * 100));
-      return `
-        <div class="stat-item" style="animation-delay:${index * 45}ms">
-          <div class="stat-head">
-            <span class="stat-name">${esc(item.model)}</span>
-            <span class="stat-tokens">${formatTokens(total)} tokens</span>
-          </div>
-          <div class="progress-track">
-            <div class="progress-fill" data-used="${width}"></div>
-          </div>
-        </div>
-      `;
-    }).join('');
-  }
-
-  if (!dailyStats.length) {
-    els.dailyStats.innerHTML = '<div class="empty-state">暂无每日数据</div>';
-  } else {
-    const recent = dailyStats.slice(-14);
-    const maxTokens = Math.max(...recent.map((item) => (item.input_tokens || 0) + (item.output_tokens || 0)), 1);
-    els.dailyStats.innerHTML = recent.map((item) => {
-      const total = (item.input_tokens || 0) + (item.output_tokens || 0);
-      const width = Math.max(3, Math.round((total / maxTokens) * 100));
-      return `
-        <div class="bar-item">
-          <div class="bar-head">
-            <span class="bar-label">${esc(item.date || '')}</span>
-            <span class="bar-value">${formatTokens(total)} · ${item.request_count} 次</span>
-          </div>
-          <div class="progress-track">
-            <div class="progress-fill" data-used="${width}"></div>
-          </div>
-        </div>
-      `;
-    }).join('');
-  }
-
-  requestAnimationFrame(() => {
-    document.querySelectorAll('.stat-item .progress-fill, .bar-item .progress-fill').forEach((fill) => {
-      fill.style.width = `${fill.dataset.used}%`;
-    });
-  });
-}
-
 function renderSnapshot() {
   const snapshot = currentSnapshot;
   if (!snapshot) {
@@ -263,7 +190,6 @@ function renderSnapshot() {
     status('等待后台自动同步', '');
     renderQuota();
     renderRecent();
-    renderStats();
     return;
   }
 
@@ -294,7 +220,6 @@ function renderSnapshot() {
 
   renderQuota();
   renderRecent();
-  renderStats();
 
   if (sync?.last_sync_status === 'error') {
     status(sync.last_sync_error || '同步失败', 'error');
@@ -305,23 +230,6 @@ function renderSnapshot() {
   } else {
     status('等待首次同步', '');
   }
-}
-
-function setTheme(theme) {
-  const resolved = theme === 'system'
-    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-    : theme;
-  document.documentElement.dataset.theme = resolved;
-  document.querySelectorAll('.theme-segmented .segmented-item').forEach((button) => {
-    button.classList.toggle('active', button.dataset.theme === theme);
-  });
-}
-
-function renderSettings(settings) {
-  currentSettings = settings;
-  els.autoSync.checked = settings.autoSync !== false;
-  els.syncPages.value = settings.syncPages || 10;
-  setTheme(settings.theme || 'system');
 }
 
 async function refresh() {
@@ -337,77 +245,43 @@ async function syncNow(maxPages = 50) {
   try {
     await sendRuntime({ type: 'SYNC_NOW', maxPages });
     await refresh();
-    snackbar('同步完成');
+    status('同步完成', 'success');
   } catch (error) {
     status(error.message, 'error');
-    snackbar(error.message);
   } finally {
     els.syncBtn.classList.remove('loading');
     els.syncBtn.disabled = false;
   }
 }
 
-async function updateSettings(patch) {
-  const response = await sendRuntime({
-    type: 'UPDATE_SETTINGS',
-    settings: { ...currentSettings, ...patch },
-  });
-  currentSettings = response.settings;
-  renderSettings(currentSettings);
-}
-
 function bindEvents() {
-  document.querySelector('nav.segmented').addEventListener('click', (event) => {
-    const button = event.target.closest('.segmented-item');
-    if (!button) return;
-    document.querySelectorAll('nav.segmented .segmented-item').forEach((item) => {
-      item.classList.toggle('active', item === button);
-      item.setAttribute('aria-selected', item === button ? 'true' : 'false');
-    });
-    document.querySelectorAll('.tab').forEach((panel) => {
-      panel.classList.toggle('active', panel.id === `tab-${button.dataset.tab}`);
-    });
-  });
-
   els.syncBtn.addEventListener('click', () => syncNow(50));
-  els.backfillBtn.addEventListener('click', () => syncNow(50));
-  els.openSiteBtn.addEventListener('click', () => sendRuntime({ type: 'OPEN_OPENCODE' }));
-
-  els.autoSync.addEventListener('change', () => {
-    updateSettings({ autoSync: els.autoSync.checked });
-  });
-
-  els.syncPages.addEventListener('change', () => {
-    const value = Math.max(1, Math.min(100, Number(els.syncPages.value) || 10));
-    els.syncPages.value = String(value);
-    updateSettings({ syncPages: value });
-  });
-
-  document.querySelector('.theme-segmented').addEventListener('click', (event) => {
-    const button = event.target.closest('.segmented-item');
-    if (!button) return;
-    updateSettings({ theme: button.dataset.theme });
-  });
-
-  els.clearHistoryBtn.addEventListener('click', async () => {
-    if (!currentSnapshot?.account?.workspace_id) {
-      snackbar('还没有可清空的历史');
-      return;
+  els.detailBtn.addEventListener('click', async () => {
+    els.detailBtn.disabled = true;
+    els.detailBtn.textContent = '正在打开...';
+    try {
+      await sendRuntime({ type: 'OPEN_TAB' });
+      window.close();
+    } catch (error) {
+      els.detailBtn.disabled = false;
+      els.detailBtn.textContent = '进入详细模式';
+      status(error.message, 'error');
     }
-    if (!window.confirm('确定清空本地完整历史？此操作不可撤销。')) return;
-    await sendRuntime({
-      type: 'CLEAR_HISTORY',
-      workspace_id: currentSnapshot.account.workspace_id,
-    });
-    await refresh();
-    snackbar('本地历史已清空');
   });
 }
 
 async function init() {
   bindEvents();
-  const settingsResponse = await sendRuntime({ type: 'GET_SETTINGS' });
-  renderSettings(settingsResponse.settings);
+  try {
+    const modeResponse = await sendRuntime({ type: 'GET_UI_MODE' });
+    if (modeResponse.uiMode === 'tab') {
+      await sendRuntime({ type: 'OPEN_TAB' });
+      window.close();
+      return;
+    }
+  } catch {
+    // If the background cannot answer, keep showing the compact preview.
+  }
   await refresh();
   void syncNow(50);
 }

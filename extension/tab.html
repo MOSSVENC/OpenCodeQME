@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenCodeQME 详细模式</title>
+    <link rel="stylesheet" href="tab.css" />
+  </head>
+  <body>
+    <div class="tab-shell">
+      <header class="app-bar">
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true">OC</div>
+          <div class="brand-copy">
+            <h1>OpenCodeQME</h1>
+            <p id="accountName">正在识别账户...</p>
+          </div>
+        </div>
+        <div class="app-actions">
+          <span class="sync-chip" id="syncStatusChip">等待同步</span>
+          <button class="icon-button" id="syncBtn" type="button" aria-label="立即同步">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M17.65 6.35A8 8 0 1 0 20 12h-2a6 6 0 1 1-1.76-4.24L13 11h7V4l-2.35 2.35Z" fill="currentColor"/>
+            </svg>
+          </button>
+          <button class="outlined-button compact" id="popupModeBtn" type="button">返回小窗口模式</button>
+        </div>
+      </header>
+
+      <nav class="nav-tabs" role="tablist" aria-label="详细页面">
+        <button class="nav-tab active" type="button" role="tab" data-page="overview" aria-selected="true">总览</button>
+        <button class="nav-tab" type="button" role="tab" data-page="token" aria-selected="false">Token 统计</button>
+        <button class="nav-tab" type="button" role="tab" data-page="daily" aria-selected="false">每日趋势</button>
+        <button class="nav-tab" type="button" role="tab" data-page="records" aria-selected="false">使用记录</button>
+        <button class="nav-tab" type="button" role="tab" data-page="settings" aria-selected="false">设置</button>
+      </nav>
+
+      <main>
+        <section class="page active" id="page-overview" role="tabpanel">
+          <div class="page-heading">
+            <div>
+              <h2>总览</h2>
+              <p>账户配额、整体用量与最近使用</p>
+            </div>
+          </div>
+          <div class="kpi-grid" id="overviewKpis"></div>
+          <div class="panel-grid">
+            <article class="panel">
+              <div class="panel-heading">
+                <h3>配额窗口</h3>
+                <span class="panel-note" id="quotaWindowNote">5h / Weekly / Monthly</span>
+              </div>
+              <div class="quota-list" id="quotaPanel"></div>
+            </article>
+            <article class="panel">
+              <div class="panel-heading">
+                <h3>模型用量 Top</h3>
+                <span class="panel-note" id="topModelNote">按 Token</span>
+              </div>
+              <div class="model-rank" id="topModelPanel"></div>
+            </article>
+          </div>
+          <article class="panel">
+            <div class="panel-heading">
+              <h3>最近使用</h3>
+              <span class="panel-note" id="overviewRecordCount">0 条</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>时间</th>
+                    <th>模型</th>
+                    <th class="num">输入</th>
+                    <th class="num">输出</th>
+                    <th class="num">费用</th>
+                    <th>计划</th>
+                  </tr>
+                </thead>
+                <tbody id="overviewRecent"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section class="page" id="page-token" role="tabpanel">
+          <div class="page-heading">
+            <div>
+              <h2>Token 统计</h2>
+              <p>按模型汇总输入、输出、缓存、费用与趋势</p>
+            </div>
+          </div>
+          <div class="kpi-grid wide" id="tokenKpis"></div>
+          <article class="panel">
+            <div class="panel-heading">
+              <h3>每日趋势</h3>
+              <span class="panel-note">近 14 天总 Token</span>
+            </div>
+            <div class="chart-bars" id="trendChart"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-heading">
+              <h3>模型用量</h3>
+              <span class="panel-note" id="modelStatsCount">0 个模型</span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>模型</th>
+                    <th class="num">请求</th>
+                    <th class="num">输入</th>
+                    <th class="num">输出</th>
+                    <th class="num">总 Token</th>
+                    <th class="num">费用</th>
+                    <th class="num">缓存命中</th>
+                    <th class="num">缓存写入</th>
+                    <th class="num">缓存率</th>
+                  </tr>
+                </thead>
+                <tbody id="modelStatsTable"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section class="page" id="page-daily" role="tabpanel">
+          <div class="page-heading">
+            <div>
+              <h2>每日趋势</h2>
+              <p>按日期查看请求、Token、缓存与费用</p>
+            </div>
+            <div class="inline-controls">
+              <button class="icon-button small" id="dailyPrevBtn" type="button" aria-label="前一天">‹</button>
+              <input class="date-input" id="dailyDate" type="date" aria-label="选择日期" />
+              <button class="icon-button small" id="dailyNextBtn" type="button" aria-label="后一天">›</button>
+              <button class="outlined-button compact" id="dailyTodayBtn" type="button">今天</button>
+            </div>
+          </div>
+          <div class="kpi-grid wide" id="dailyKpis"></div>
+          <article class="panel">
+            <div class="panel-heading">
+              <h3>按模型拆分</h3>
+              <span class="panel-note" id="dailyDateLabel"></span>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>模型</th>
+                    <th class="num">请求</th>
+                    <th class="num">输入</th>
+                    <th class="num">输出</th>
+                    <th class="num">缓存 Token</th>
+                    <th class="num">缓存率</th>
+                    <th class="num">总 Token</th>
+                    <th class="num">费用</th>
+                  </tr>
+                </thead>
+                <tbody id="dailyModelTable"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section class="page" id="page-records" role="tabpanel">
+          <div class="page-heading">
+            <div>
+              <h2>使用记录</h2>
+              <p id="recordsSummary">完整本地历史</p>
+            </div>
+            <div class="inline-controls">
+              <input class="text-input" id="recordsFilter" type="search" placeholder="筛选模型 / provider / usg_id" aria-label="筛选记录" />
+              <button class="outlined-button compact" id="recordsRefreshBtn" type="button">刷新</button>
+            </div>
+          </div>
+          <article class="panel">
+            <div class="panel-heading">
+              <h3>记录明细</h3>
+              <span class="panel-note" id="recordsPageLabel"></span>
+            </div>
+            <div class="table-wrap wide-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>usg_id</th>
+                    <th>账户</th>
+                    <th>时间</th>
+                    <th>模型</th>
+                    <th>provider</th>
+                    <th class="num">输入</th>
+                    <th class="num">输出</th>
+                    <th class="num">uncached</th>
+                    <th class="num">cache read</th>
+                    <th class="num">cache write</th>
+                    <th class="num">cost</th>
+                    <th>key_id</th>
+                    <th>plan</th>
+                  </tr>
+                </thead>
+                <tbody id="recordsTable"></tbody>
+              </table>
+            </div>
+            <div class="pagination">
+              <button class="outlined-button compact" id="recordsPrevBtn" type="button">上一页</button>
+              <button class="outlined-button compact" id="recordsNextBtn" type="button">下一页</button>
+            </div>
+          </article>
+        </section>
+
+        <section class="page" id="page-settings" role="tabpanel">
+          <div class="page-heading">
+            <div>
+              <h2>设置</h2>
+              <p>同步、外观、语言与本地历史管理</p>
+            </div>
+            <div class="inline-controls">
+              <button class="filled-button compact" id="settingsSyncBtn" type="button">立即同步</button>
+              <button class="outlined-button compact" id="openSiteBtn" type="button">打开 opencode.ai</button>
+            </div>
+          </div>
+
+          <article class="panel">
+            <div class="panel-heading">
+              <h3>同步状态</h3>
+              <span class="status-chip" id="settingsStatusChip">未同步</span>
+            </div>
+            <div class="sync-state-grid" id="syncStatePanel"></div>
+          </article>
+
+          <div class="settings-grid">
+            <article class="panel">
+              <div class="panel-heading"><h3>同步</h3></div>
+              <label class="setting-row">
+                <span>
+                  <strong>自动同步</strong>
+                  <small>后台按周期拉取完整历史</small>
+                </span>
+                <input type="checkbox" id="autoSync" class="switch" />
+              </label>
+              <label class="setting-row">
+                <span>
+                  <strong>同步页数</strong>
+                  <small>每次回填的页数上限</small>
+                </span>
+                <input class="number-input" type="number" id="syncPages" min="1" max="100" step="1" />
+              </label>
+              <label class="setting-row">
+                <span>
+                  <strong>使用记录刷新间隔</strong>
+                  <small>后台同步周期</small>
+                </span>
+                <select class="select-input" id="usageSyncIntervalSec">
+                  <option value="60">1 分钟</option>
+                  <option value="300">5 分钟</option>
+                  <option value="600">10 分钟</option>
+                  <option value="1800">30 分钟</option>
+                </select>
+              </label>
+              <label class="setting-row">
+                <span>
+                  <strong>配额刷新间隔</strong>
+                  <small>后台刷新周期</small>
+                </span>
+                <select class="select-input" id="quotaRefreshIntervalSec">
+                  <option value="30">30 秒</option>
+                  <option value="60">1 分钟</option>
+                  <option value="300">5 分钟</option>
+                </select>
+              </label>
+              <div class="button-row">
+                <button class="outlined-button compact" id="clearHistoryBtn" type="button">清空历史</button>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-heading"><h3>外观与语言</h3></div>
+              <div class="setting-row">
+                <span>
+                  <strong>主题</strong>
+                  <small>界面明暗模式</small>
+                </span>
+                <div class="segmented" id="themeSegmented" role="group" aria-label="主题">
+                  <button type="button" data-theme="light">浅色</button>
+                  <button type="button" data-theme="dark">深色</button>
+                  <button type="button" data-theme="system">跟随系统</button>
+                </div>
+              </div>
+              <div class="setting-row">
+                <span>
+                  <strong>语言</strong>
+                  <small>界面语言偏好</small>
+                </span>
+                <div class="segmented" id="languageSegmented" role="group" aria-label="语言">
+                  <button type="button" data-language="zh">中文</button>
+                  <button type="button" data-language="en">English</button>
+                  <button type="button" data-language="auto">自动</button>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="tab.js"></script>
+  </body>
+</html>

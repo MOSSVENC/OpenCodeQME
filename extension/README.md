@@ -8,7 +8,10 @@ OpenCodeQME 全称是 **OpenCode Quota Monitor Extension**，轻量 MV3 浏览�
 - 自动拉取 OpenCode Go 配额、使用记录，并用 `usg_id` 去重写入 IndexedDB。
 - 使用记录按上游默认每 5 分钟同步，配额按默认 60 秒刷新。
 - 记录同步断点，后台继续回填完整历史。
-- popup 提供总览、模型用量、每日趋势和同步设置。
+- popup 提供小窗口预览：今日 Token、可用额度、最近记录和同步状态。
+- 独立标签页提供完整界面：总览、Token 统计、每日趋势、使用记录和设置。
+- 页面边缘悬浮按钮可拖动并自动吸附左右边缘，点击按当前 `uiMode` 打开小窗口或标签页。
+- `uiMode` 会持久化到 `chrome.storage.local`，下次打开时沿用上次选择的模式。
 
 ## 安装
 

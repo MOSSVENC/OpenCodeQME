@@ -8,9 +8,9 @@
   </head>
   <body>
     <div class="app" id="app">
-      <header class="topbar">
+      <header class="preview-header">
         <div class="brand-mark" aria-hidden="true">OC</div>
-        <div class="topbar-text">
+        <div class="header-copy">
           <h1>OpenCodeQME</h1>
           <p id="accountName">正在自动识别账户...</p>
         </div>
@@ -26,110 +26,42 @@
         <span id="statusText">等待同步</span>
       </div>
 
-      <nav class="segmented" role="tablist" aria-label="页面">
-        <button class="segmented-item active" type="button" role="tab" data-tab="overview" aria-selected="true">总览</button>
-        <button class="segmented-item" type="button" role="tab" data-tab="history" aria-selected="false">历史</button>
-        <button class="segmented-item" type="button" role="tab" data-tab="settings" aria-selected="false">设置</button>
-      </nav>
+      <section class="preview-card" aria-label="使用预览">
+        <div class="preview-stat">
+          <span class="preview-label">今日 Token</span>
+          <strong class="preview-value" id="todayTokens">0</strong>
+          <small class="preview-sub" id="todayRequests">0 次请求</small>
+        </div>
+        <div class="preview-stat">
+          <span class="preview-label">可用额度</span>
+          <strong class="preview-value" id="quotaValue">—</strong>
+          <small class="preview-sub" id="quotaSub">当前账户</small>
+        </div>
+      </section>
 
-      <main>
-        <section class="tab active" id="tab-overview" role="tabpanel">
-          <div class="kpi-grid">
-            <article class="kpi-card">
-              <span class="kpi-label">今日 Token</span>
-              <strong class="kpi-value" id="todayTokens">0</strong>
-              <span class="kpi-sub" id="todayRequests">0 次请求</span>
-            </article>
-            <article class="kpi-card">
-              <span class="kpi-label">可用额度</span>
-              <strong class="kpi-value" id="quotaValue">—</strong>
-              <span class="kpi-sub" id="quotaSub">当前账户</span>
-            </article>
-          </div>
+      <article class="card">
+        <div class="card-heading">
+          <h2>额度状态</h2>
+          <span class="chip" id="syncChip">未同步</span>
+        </div>
+        <div class="quota-list" id="quotaList">
+          <div class="empty-state">打开 opencode.ai 后自动同步</div>
+        </div>
+      </article>
 
-          <article class="card">
-            <div class="card-heading">
-              <h2>额度状态</h2>
-              <span class="chip" id="syncChip">未同步</span>
-            </div>
-            <div class="quota-list" id="quotaList">
-              <div class="empty-state">打开 opencode.ai 后自动同步</div>
-            </div>
-          </article>
+      <article class="card">
+        <div class="card-heading">
+          <h2>最近记录</h2>
+          <span class="muted" id="recordCount">0 条</span>
+        </div>
+        <div class="record-list" id="recentList">
+          <div class="empty-state">暂无使用记录</div>
+        </div>
+      </article>
 
-          <article class="card">
-            <div class="card-heading">
-              <h2>最近使用</h2>
-              <span class="muted" id="recordCount">0 条</span>
-            </div>
-            <div class="record-list" id="recentList">
-              <div class="empty-state">暂无使用记录</div>
-            </div>
-          </article>
-        </section>
-
-        <section class="tab" id="tab-history" role="tabpanel">
-          <article class="card">
-            <div class="card-heading">
-              <h2>模型用量</h2>
-              <span class="muted" id="modelCount">0 个模型</span>
-            </div>
-            <div class="stat-list" id="modelStats">
-              <div class="empty-state">暂无模型数据</div>
-            </div>
-          </article>
-
-          <article class="card">
-            <div class="card-heading">
-              <h2>每日趋势</h2>
-              <span class="muted">近 30 天</span>
-            </div>
-            <div class="bar-list" id="dailyStats">
-              <div class="empty-state">暂无每日数据</div>
-            </div>
-          </article>
-        </section>
-
-        <section class="tab" id="tab-settings" role="tabpanel">
-          <article class="card">
-            <div class="card-heading">
-              <h2>同步</h2>
-            </div>
-            <label class="setting-row">
-              <span>
-                <strong>自动同步</strong>
-                <small>打开 opencode.ai 时自动拉取</small>
-              </span>
-              <input type="checkbox" id="autoSync" class="md-switch" />
-            </label>
-            <label class="setting-row">
-              <span>
-                <strong>每次同步页数</strong>
-                <small>数字越大，回填越快</small>
-              </span>
-              <input class="number-input" type="number" id="syncPages" min="1" max="100" step="1" />
-            </label>
-            <div class="button-row">
-              <button class="filled-button" id="backfillBtn" type="button">继续回填历史</button>
-              <button class="text-button danger" id="clearHistoryBtn" type="button">清空历史</button>
-            </div>
-          </article>
-
-          <article class="card">
-            <div class="card-heading">
-              <h2>外观</h2>
-            </div>
-            <div class="segmented theme-segmented" role="group" aria-label="主题">
-              <button class="segmented-item" type="button" data-theme="light">浅色</button>
-              <button class="segmented-item" type="button" data-theme="dark">深色</button>
-              <button class="segmented-item" type="button" data-theme="system">跟随系统</button>
-            </div>
-            <button class="outlined-button full" id="openSiteBtn" type="button">打开 opencode.ai</button>
-          </article>
-        </section>
-      </main>
-
-      <div class="snackbar" id="snackbar" role="status" aria-live="polite"></div>
+      <div class="action-row">
+        <button class="filled-button full" id="detailBtn" type="button">进入详细模式</button>
+      </div>
     </div>
     <script src="popup.js"></script>
   </body>
