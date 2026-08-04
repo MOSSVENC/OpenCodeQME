@@ -14,9 +14,13 @@ OpenCodeQME 全称是 **OpenCode Quota Monitor Extension**，轻量 MV3 浏览�
 
 1. 打开 Chrome/Edge 的 `chrome://extensions`。
 2. 开启“开发者模式”。
-3. 点击“加载已解压的扩展程序”，选择本项目中的 `extension` 目录。
+3. 自用推荐两种方式：
+   - 将 `release/opencodeqme-extension.crx` 拖入 `chrome://extensions` 安装。
+   - 或点击“加载已解压的扩展程序”，选择本项目中的 `extension` 目录。
 4. 在浏览器中登录一次 `https://opencode.ai`，之后不需要保持页面打开。
 5. 扩展后台会自动识别账户并同步。
+
+> `.crx` 使用 `release/opencodeqme-extension.pem` 签名；请自行保留该私钥，不要提交到仓库。丢失后重新打包会导致扩展 ID 改变。
 
 ## 权限说明
 
