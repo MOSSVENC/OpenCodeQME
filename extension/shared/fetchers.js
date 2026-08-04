@@ -123,6 +123,7 @@ globalThis.OpenCodeFetcher = (() => {
   async function fetchQuota(workspaceId) {
     const dashboardUrl = `${DASHBOARD_BASE}/${encodeURIComponent(workspaceId)}/go`;
     const response = await fetchWithTimeout(dashboardUrl, {
+      cache: 'no-store',
       credentials: 'include',
       headers: {
         'User-Agent': USER_AGENT,
@@ -177,6 +178,7 @@ globalThis.OpenCodeFetcher = (() => {
       `https://opencode.ai/_server?id=${encodeURIComponent(USAGE_SERVER_ID)}` +
       `&args=${encodeURIComponent(JSON.stringify(args))}`;
     const response = await fetchWithTimeout(url, {
+      cache: 'no-store',
       credentials: 'include',
       headers: {
         'X-Server-Id': USAGE_SERVER_ID,

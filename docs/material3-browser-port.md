@@ -398,6 +398,7 @@ interface CurrentAccount {
 ```bash
 npm run test:extension
 npm run build:extension
+npm run mock:opencode
 ```
 
 构建产物为 `release/68hub-material-extension.zip`，也可直接加载 `extension/` 目录。

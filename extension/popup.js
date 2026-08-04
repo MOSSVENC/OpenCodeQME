@@ -375,6 +375,18 @@ async function syncNow(maxPages = 50) {
   }
 }
 
+async function syncActiveTab(maxPages = 50) {
+  try {
+    const tab = await getActiveTab();
+    if (isOpenCodeTab(tab)) {
+      await sendTabMessage(tab.id, { type: 'SYNC_NOW', maxPages });
+      await refresh();
+    }
+  } catch {
+    // fall back to stored snapshot
+  }
+}
+
 async function updateSettings(patch) {
   const response = await sendRuntime({
     type: 'UPDATE_SETTINGS',
@@ -436,16 +448,7 @@ async function init() {
   bindEvents();
   const settingsResponse = await sendRuntime({ type: 'GET_SETTINGS' });
   renderSettings(settingsResponse.settings);
-
-  const tab = await getActiveTab();
-  if (isOpenCodeTab(tab)) {
-    try {
-      await sendTabMessage(tab.id, { type: 'SYNC_NOW', maxPages: 50 });
-    } catch {
-      // content script may still be loading; fall back to stored snapshot
-    }
-  }
-
+  void syncActiveTab(50);
   await refresh();
 }
 
