@@ -131,9 +131,9 @@ function effectiveQuota(quota) {
 
 function displayAccountName(account) {
   const name = String(account?.name || '').trim();
-  if (name && name !== 'Default' && name !== 'OpenCode') return name;
+  if (name) return name;
   const workspaceId = String(account?.workspace_id || '').trim();
-  if (workspaceId && workspaceId !== 'Default') return workspaceId;
+  if (workspaceId) return workspaceId;
   return t('accountDefault');
 }
 
