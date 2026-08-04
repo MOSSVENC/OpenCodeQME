@@ -385,12 +385,11 @@ interface CurrentAccount {
 
 已完成轻量 MV3 扩展原型，入口为 `extension/`：
 
-- `manifest.json`：MV3、popup、content script、storage/tabs 权限。
+- `manifest.json`：MV3、popup、background service worker、alarms/cookies/storage 权限。
 - `shared/parsers.js`：配额与使用记录 parser，从 Electron 后端逻辑迁移。
 - `shared/fetchers.js`：同源抓取当前账户配额和使用记录。
 - `shared/history.js`：IndexedDB 完整历史、`usg_id` 去重、同步断点。
-- `background.js`：消息桥、快照缓存、badge、设置持久化。
-- `content.js`：打开 opencode.ai 时自动识别账户并增量/回填同步。
+- `background.js`：后台直接抓取、alarm 定时同步、快照缓存、badge、设置持久化。
 - `popup.html/css/js`：Material 3 弹窗，包含总览、历史、设置和动画。
 
 构建与验证：
@@ -406,5 +405,5 @@ npm run mock:opencode
 当前边界：
 
 - 只支持浏览器当前登录的单个 opencode.ai 账户。
-- 自动同步发生在 opencode.ai 页面打开时；未做常驻 alarms。
-- 后续如需页面关闭后继续同步，再升级为 service worker alarms + side panel。
+- 后台自动同步，不需要打开 opencode.ai 页面。
+- 使用记录默认按上游 5 分钟同步，配额默认 60 秒刷新。

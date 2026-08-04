@@ -45,28 +45,6 @@ function sendRuntime(message) {
   });
 }
 
-function sendTabMessage(tabId, message) {
-  return new Promise((resolve, reject) => {
-    chrome.tabs.sendMessage(tabId, message, (response) => {
-      const error = chrome.runtime.lastError;
-      if (error) {
-        reject(new Error(error.message));
-        return;
-      }
-      resolve(response);
-    });
-  });
-}
-
-async function getActiveTab() {
-  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-  return tabs[0] || null;
-}
-
-function isOpenCodeTab(tab) {
-  return Boolean(tab?.url && /^https:\/\/opencode\.ai\//.test(tab.url));
-}
-
 function esc(value) {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -282,7 +260,7 @@ function renderSnapshot() {
   const snapshot = currentSnapshot;
   if (!snapshot) {
     els.accountName.textContent = '尚未识别账户';
-    status('打开 opencode.ai 后自动同步', '');
+    status('等待后台自动同步', '');
     renderQuota();
     renderRecent();
     renderStats();
@@ -357,13 +335,7 @@ async function syncNow(maxPages = 50) {
   els.syncBtn.disabled = true;
   status('正在同步完整历史...', '');
   try {
-    const tab = await getActiveTab();
-    if (isOpenCodeTab(tab)) {
-      await sendTabMessage(tab.id, { type: 'SYNC_NOW', maxPages });
-    } else {
-      await sendRuntime({ type: 'OPEN_OPENCODE' });
-      snackbar('已打开 opencode.ai，等待自动同步');
-    }
+    await sendRuntime({ type: 'SYNC_NOW', maxPages });
     await refresh();
     snackbar('同步完成');
   } catch (error) {
@@ -372,18 +344,6 @@ async function syncNow(maxPages = 50) {
   } finally {
     els.syncBtn.classList.remove('loading');
     els.syncBtn.disabled = false;
-  }
-}
-
-async function syncActiveTab(maxPages = 50) {
-  try {
-    const tab = await getActiveTab();
-    if (isOpenCodeTab(tab)) {
-      await sendTabMessage(tab.id, { type: 'SYNC_NOW', maxPages });
-      await refresh();
-    }
-  } catch {
-    // fall back to stored snapshot
   }
 }
 
@@ -448,8 +408,8 @@ async function init() {
   bindEvents();
   const settingsResponse = await sendRuntime({ type: 'GET_SETTINGS' });
   renderSettings(settingsResponse.settings);
-  void syncActiveTab(50);
   await refresh();
+  void syncNow(50);
 }
 
 init().catch((error) => {

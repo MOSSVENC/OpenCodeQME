@@ -15,7 +15,6 @@ execFileSync('node', [path.join(root, 'scripts/test-extension.mjs')], {
 });
 for (const file of [
   'background.js',
-  'content.js',
   'popup.js',
   'shared/parsers.js',
   'shared/fetchers.js',

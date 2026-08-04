@@ -3,7 +3,7 @@
   "name": "68HUB Material",
   "version": "0.1.0",
   "description": "OpenCode Go single-user usage dashboard with full local history.",
-  "permissions": ["storage", "tabs"],
+  "permissions": ["alarms", "cookies", "storage"],
   "host_permissions": ["https://opencode.ai/*"],
   "background": {
     "service_worker": "background.js"
@@ -15,17 +15,6 @@
       "128": "icon.png"
     }
   },
-  "content_scripts": [
-    {
-      "matches": ["https://opencode.ai/*"],
-      "js": [
-        "shared/parsers.js",
-        "shared/fetchers.js",
-        "content.js"
-      ],
-      "run_at": "document_idle"
-    }
-  ],
   "icons": {
     "128": "icon.png"
   }

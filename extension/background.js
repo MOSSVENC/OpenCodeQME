@@ -1,9 +1,14 @@
-importScripts('shared/history.js');
+importScripts('shared/parsers.js', 'shared/fetchers.js', 'shared/history.js');
+
+const SYNC_ALARM = '68hub-sync';
+const OPENCODE_URL = 'https://opencode.ai';
 
 const DEFAULT_SETTINGS = {
   autoSync: true,
   syncPages: 10,
   theme: 'system',
+  usageSyncIntervalSec: 300,
+  quotaRefreshIntervalSec: 60,
 };
 
 const KEY_SETTINGS = '68hub.settings';
@@ -12,6 +17,8 @@ const KEY_QUOTA = '68hub.quota';
 const KEY_SNAPSHOT = '68hub.snapshot';
 const KEY_SYNC_STATE = '68hub.sync_state';
 const KEY_RECORD_CACHE = '68hub.record_cache';
+
+let syncing = false;
 
 async function getSettings() {
   const stored = await chrome.storage.local.get(KEY_SETTINGS);
@@ -179,6 +186,141 @@ function updateBadge(quota) {
   chrome.action.setBadgeBackgroundColor({ color: used == null || used < 80 ? '#006a6a' : '#ba1a1a' });
 }
 
+async function fetchPage(workspaceId, page, syncAt) {
+  const records = await OpenCodeFetcher.fetchUsagePage(workspaceId, page);
+  for (const record of records) {
+    record.workspace_id = workspaceId;
+    record.synced_at = syncAt;
+  }
+  return records;
+}
+
+async function syncOnce({ maxPages = 10, includeUpdates = true } = {}) {
+  if (syncing) return { skipped: true };
+  syncing = true;
+  const syncAt = new Date().toISOString();
+  let pagesFetched = 0;
+  let recordsWritten = 0;
+
+  try {
+    const account = await OpenCodeFetcher.identifyAccount('Default');
+    const workspaceId = account.workspace_id;
+    const quota = await OpenCodeFetcher.fetchQuota(workspaceId);
+
+    const state = await getLocalSyncState(workspaceId);
+    const deepest = state && Number.isFinite(Number(state.deepest_page))
+      ? Number(state.deepest_page)
+      : -1;
+    let reachedEnd = Boolean(state?.reached_end);
+    let deepestPage = deepest;
+    const allRecords = [];
+
+    const updatePages = includeUpdates && deepest >= 0
+      ? Math.min(deepest + 1, 5)
+      : 0;
+    for (let page = 0; page < updatePages; page += 1) {
+      const records = await fetchPage(workspaceId, page, syncAt);
+      pagesFetched += 1;
+      recordsWritten += records.length;
+      allRecords.push(...records);
+      deepestPage = Math.max(deepestPage, page);
+      if (!records.length) {
+        reachedEnd = true;
+        deepestPage = page;
+        break;
+      }
+    }
+
+    if (!reachedEnd) {
+      const limit = Math.max(1, Number(maxPages) || 10);
+      const startPage = Math.max(0, deepest + 1);
+      let page = startPage;
+      while (page < startPage + limit) {
+        const records = await fetchPage(workspaceId, page, syncAt);
+        pagesFetched += 1;
+        recordsWritten += records.length;
+        allRecords.push(...records);
+        deepestPage = page;
+        if (!records.length) {
+          reachedEnd = true;
+          break;
+        }
+        page += 1;
+      }
+    }
+
+    const syncState = {
+      workspace_id: workspaceId,
+      deepest_page: Math.max(deepest, deepestPage),
+      last_sync_at: syncAt,
+      last_sync_status: 'ok',
+      reached_end: reachedEnd,
+    };
+
+    await chrome.storage.local.set({
+      [KEY_ACCOUNT]: {
+        workspace_id: workspaceId,
+        name: account.name,
+        recognized_at: syncAt,
+      },
+      [KEY_QUOTA]: quota,
+    });
+    await HistoryStore.saveRecords(allRecords);
+    await HistoryStore.saveSyncState(syncState);
+    await saveLocalSyncState(syncState);
+    await appendRecordCache(workspaceId, allRecords);
+    await refreshSnapshot();
+    updateBadge(quota);
+
+    return {
+      workspace_id: workspaceId,
+      pages_fetched: pagesFetched,
+      records_written: recordsWritten,
+      reached_end: reachedEnd,
+      sync_at: syncAt,
+    };
+  } catch (error) {
+    const message = String(error?.message || error);
+    try {
+      const state = await getLocalSyncState('Default');
+      const workspaceId = state?.workspace_id || 'Default';
+      const syncState = {
+        workspace_id: workspaceId,
+        deepest_page: state?.deepest_page ?? -1,
+        last_sync_at: syncAt,
+        last_sync_status: 'error',
+        last_sync_error: message,
+      };
+      await HistoryStore.saveSyncState(syncState);
+      await saveLocalSyncState(syncState);
+      await refreshSnapshot();
+    } catch {
+      // keep the original sync failure visible to the popup
+    }
+    throw error;
+  } finally {
+    syncing = false;
+  }
+}
+
+async function scheduleAlarm() {
+  const settings = await getSettings();
+  if (!settings.autoSync) {
+    await chrome.alarms.create(SYNC_ALARM, {
+      delayInMinutes: 0.5,
+      periodInMinutes: 30,
+    });
+    return;
+  }
+  const intervalMinutes = Math.max(
+    0.5,
+    Number(settings.usageSyncIntervalSec || 300) / 60,
+  );
+  await chrome.alarms.create(SYNC_ALARM, {
+    periodInMinutes: intervalMinutes,
+  });
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   void handleMessage(message).then((result) => {
     sendResponse({ ok: true, ...result });
@@ -191,29 +333,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 async function handleMessage(message) {
   switch (message?.type) {
-    case 'SAVE_ACCOUNT': {
-      await chrome.storage.local.set({ [KEY_ACCOUNT]: message.account });
-      await chrome.storage.local.remove(KEY_SNAPSHOT);
-      return {};
-    }
-    case 'SAVE_QUOTA': {
-      await chrome.storage.local.set({ [KEY_QUOTA]: message.quota });
-      updateBadge(message.quota);
-      await chrome.storage.local.remove(KEY_SNAPSHOT);
-      return {};
-    }
-    case 'SAVE_USAGE': {
-      await HistoryStore.saveRecords(message.records || []);
-      await HistoryStore.saveSyncState(message.sync_state);
-      await saveLocalSyncState(message.sync_state);
-      await appendRecordCache(message.workspace_id, message.records || []);
-      await chrome.storage.local.remove(KEY_SNAPSHOT);
-      return {};
-    }
-    case 'GET_STATE': {
-      const state = await getLocalSyncState(message.workspace_id);
-      return { state };
-    }
     case 'GET_SNAPSHOT': {
       const snapshot = await refreshSnapshot();
       return { snapshot };
@@ -224,18 +343,15 @@ async function handleMessage(message) {
     }
     case 'UPDATE_SETTINGS': {
       const settings = await setSettings(message.settings);
+      await scheduleAlarm();
       return { settings };
     }
-    case 'SYNC_TAB': {
-      if (!message.tab_id) throw new Error('缺少 tab_id');
-      await chrome.tabs.sendMessage(message.tab_id, {
-        type: 'SYNC_NOW',
-        maxPages: message.maxPages || 50,
-      });
-      return {};
+    case 'SYNC_NOW': {
+      const result = await syncOnce({ maxPages: message.maxPages || 50 });
+      return { ...result };
     }
     case 'OPEN_OPENCODE': {
-      await chrome.tabs.create({ url: 'https://opencode.ai' });
+      await chrome.tabs.create({ url: OPENCODE_URL });
       return {};
     }
     case 'CLEAR_HISTORY': {
@@ -255,7 +371,26 @@ async function handleMessage(message) {
 
 chrome.runtime.onInstalled.addListener(async () => {
   await setSettings(DEFAULT_SETTINGS);
+  await scheduleAlarm();
   if (navigator.storage?.persist) {
     await navigator.storage.persist();
   }
+  void syncOnce({ maxPages: DEFAULT_SETTINGS.syncPages });
+});
+
+chrome.runtime.onStartup.addListener(async () => {
+  await scheduleAlarm();
+  const settings = await getSettings();
+  if (settings.autoSync) {
+    void syncOnce({ maxPages: settings.syncPages });
+  }
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name !== SYNC_ALARM) return;
+  void getSettings().then((settings) => {
+    if (settings.autoSync) {
+      void syncOnce({ maxPages: settings.syncPages });
+    }
+  });
 });
