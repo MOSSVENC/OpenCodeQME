@@ -1,4 +1,4 @@
-# 68HUB Material 3 重构与浏览器移植方案
+# 68HUB Material 3 重构与单用户自动识别移植方案
 
 ## 1. 项目现状
 
@@ -7,34 +7,31 @@
 - 前端：React 18 + Vite 5 + Tailwind 4 + daisyUI 5 + Recharts。
 - 后端：Electron 主进程内嵌 Hono + better-sqlite3。
 - 数据源：从 `opencode.ai` 抓取 OpenCode Go 配额和使用记录。
-- 核心能力：多账户管理、额度总览、Token 统计、每日趋势、使用记录、自动同步与回填、中英文、明暗主题。
+- 核心能力：额度总览、Token 统计、每日趋势、使用记录、自动同步与回填、中英文、明暗主题。
 - 当前 UI 风格：daisyUI cupcake/forest，偏卡片式看板，不是 Material 3。
 
 这次的目标是：
 
 1. 用 Material 3（Material You）重构现有前端视觉与组件体系。
-2. 把项目移植到浏览器，优先做成 Chrome/Edge MV3 浏览器扩展；保留篡改猴脚本作为轻量方案。
-3. 尽量复用现有 React 页面、图表和业务逻辑，避免推倒重写。
+2. 只做单用户自动识别：浏览器打开 `opencode.ai` 时自动识别当前登录账户和工作区，不提供多账户管理和手动粘贴 cookie。
+3. 优先做篡改猴脚本，因为单用户场景不需要常驻后台，交付最轻；MV3 扩展作为后续可选升级。
+4. 尽量复用现有 React 页面、图表和业务逻辑，避免推倒重写。
 
 ## 2. 关键决策
 
-### 2.1 浏览器扩展优先，篡改猴脚本作为轻量变体
+### 2.1 本阶段主推篡改猴脚本
 
-建议主目标是 **MV3 浏览器扩展**，原因：
+既然只做单用户自动识别，**篡改猴脚本比浏览器扩展更轻量**：
 
-- 扩展有独立后台（service worker），可以用 `chrome.alarms` 定时同步。
-- 可以用 `chrome.storage` 或扩展页 IndexedDB 保存历史数据。
-- 可以做 side panel、popup、badge、通知、options 页，体验接近桌面应用。
-- 能申请 `cookies` 权限读取当前登录的 `opencode.ai` cookie。
-- 不受页面 CSP 和页面 DOM 改版影响。
+- 交付物是单个 `.user.js`，不需要 manifest、权限声明和安装目录。
+- 运行在 `https://opencode.ai/*` 页面内，天然是 opencode.ai 同源，可以直接使用当前浏览器 cookie。
+- 不需要 `cookies`、`alarms`、`sidePanel` 等扩展权限。
+- 页面打开时自动识别账户并同步，页面关闭后停止，正好符合“单用户轻量版”的边界。
 
-篡改猴脚本更适合：
+MV3 扩展仍然保留为后续可选升级：
 
-- 快速在 `https://opencode.ai/*` 上注入一个 Material 3 浮层。
-- 只展示当前账号配额和最近使用记录。
-- 不需要安装扩展，也不需要浏览器商店。
-
-不建议把篡改猴脚本做成完整替代品，因为它没有可靠的常驻后台，页面关闭后无法继续自动同步，且多账户支持更弱。
+- 如果之后需要页面关闭也能同步、全局 side panel、通知或浏览器 badge，再升级到扩展。
+- 单用户版升级时不需要改 UI，只需要替换数据 adapter 和打包入口。
 
 ### 2.2 视觉基线采用 Material 3
 
@@ -71,10 +68,12 @@ src/
     fetcher.ts            # DataProvider 接口
   adapters/
     electron.ts           # 现有 HTTP API，保留桌面端
-    extension.ts          # MV3 background message bridge
-    userscript.ts         # 可选 Tampermonkey adapter
+    userscript.ts         # 主推：Tampermonkey 单用户自动识别 adapter
+    extension.ts          # 后续可选：MV3 background message bridge
   ui/                    # 现有 React 页面与组件，按 M3 重构
 web/
+  userscript/
+    index.ts              # 打包成单文件用户脚本，主交付物
   extension/
     manifest.json
     background.ts         # cookie、抓取、alarm、IndexedDB
@@ -82,8 +81,6 @@ web/
     popup.html
     options.html
     content-overlay.ts    # 可选：opencode.ai 浮层
-  userscript/
-    index.ts              # 可选：打包成单文件用户脚本
 ```
 
 核心原则：
@@ -91,6 +88,7 @@ web/
 - 抓取逻辑和解析逻辑只写一份，Electron 和浏览器共用。
 - UI 只依赖 `DataProvider` 接口，不直接知道自己是 Electron、扩展还是用户脚本。
 - 浏览器端先复用当前页面级功能，不复制 Electron 的托盘、原生窗口和登录窗口。
+- 单用户版不保存、不读取任意 auth cookie，只使用浏览器当前会话。
 
 ## 4. Material 3 重构范围
 
@@ -142,9 +140,9 @@ web/
 - Token 统计：汇总卡片、模型排行图表、M3 Data Table。
 - 每日趋势：日期选择器改为 M3 控件，统计表保留可读性。
 - 使用记录：分页、筛选、缓存 Token tooltip 全部保留，但使用 M3 table 和 snackbar。
-- 设置：语言、主题、账户、同步、回填、托盘等设置页改成 M3 表单和 dialog。
+- 设置：语言、主题、同步刷新间隔改成 M3 表单和 dialog；不再做账户管理和托盘设置。
 
-## 5. 浏览器扩展方案
+## 5. 后续可选：MV3 浏览器扩展
 
 ### 5.1 Manifest V3 草案
 
@@ -181,7 +179,7 @@ web/
 
 - 扩展后台 service worker 作为唯一数据入口。
 - 当前账号认证：
-  - 优先用 `chrome.cookies.get({ url: "https://opencode.ai", name: "auth" })` 读取当前登录 cookie。
+  - 用 `chrome.cookies.get({ url: "https://opencode.ai", name: "auth" })` 读取当前登录 cookie。
   - 或尝试 `fetch(url, { credentials: "include" })` 带浏览器 cookie 请求 opencode.ai。
 - 配额：请求 `https://opencode.ai/workspace/{workspaceId}/go`，复用共享 parser。
 - 使用记录：请求 `https://opencode.ai/_server?id=...&args=...`，复用共享 parser。
@@ -194,7 +192,7 @@ web/
 
 - side panel：完整 Dashboard，推荐作为主界面。
 - popup：精简摘要，展示配额、今日 Token 和同步状态。
-- options：账户、主题、语言、同步策略。
+- options：主题、语言、同步刷新间隔。
 - 可选 content script：在 opencode.ai 页面右下角放一个 Material 3 浮层按钮，点击打开 side panel 或浮层详情。
 
 ### 5.4 与 Electron 的差异
@@ -202,11 +200,21 @@ web/
 - 浏览器端没有系统托盘；关闭 side panel 不等于退出应用。
 - 浏览器端没有“重启后端”概念，改为“重连 / 重新同步”。
 - 浏览器端不保存任意 auth cookie 字符串到普通本地文件，只读取浏览器当前会话 cookie。
-- Electron 多账户能力在浏览器端需要重新设计，见第 7 节。
+- 扩展版仍然只做单用户自动识别，不引入多账户。
 
-## 6. 篡改猴脚本方案
+## 6. 主推：篡改猴单用户自动识别版
 
-如果要做轻量版：
+### 6.1 自动识别流程
+
+1. 脚本只在 `https://opencode.ai/*` 页面运行。
+2. 从当前 URL 自动提取工作区：
+   - 例如 `/workspace/wrk_xxx/go` 中的 `wrk_xxx`。
+   - 如果 URL 没有工作区，用当前会话 cookie 调用共享的 `resolveWorkspaceId('Default')`。
+3. 不使用手动输入的 auth cookie，也不提供多账户切换。
+4. 页面 cookie 自动随同源请求发送，脚本只负责解析结果。
+5. 把识别到的账户信息保存为“当前账户”，后续页面打开时直接复用。
+
+### 6.2 交付方式
 
 1. 把 React 应用打包成单个 IIFE 用户脚本。
 2. `@match https://opencode.ai/*`，注入一个固定定位的 Material 3 面板。
@@ -215,26 +223,45 @@ web/
 5. 页面打开时自动同步，页面关闭后不能保证继续同步。
 6. 配额、使用记录 parser 与扩展共用同一份 domain 代码。
 
+### 6.3 最小功能范围
+
+- Dashboard：当前账户配额、今日 Token、最近使用记录。
+- Token 统计：当前账户的模型用量排行。
+- 每日趋势：当前账户的每日统计。
+- 设置：语言、主题、刷新间隔。
+- 不保留：多账户列表、账户新增/删除/测试、自动回填配置、托盘。
+
 主要风险：
 
 - 页面 CSP 可能阻止部分注入方式，需要预研。
 - 脚本必须跟着 opencode.ai 页面结构变化更新。
-- 多账户和常驻同步能力弱。
+- 页面关闭后不继续同步。
 
-## 7. 多账户策略
+## 7. 单用户自动识别范围
 
-现状 Electron 通过存储多个 `auth_cookie` 实现多账户。浏览器 fetch 无法直接设置 `Cookie` 请求头，因此浏览器端不能简单照搬。
+本版明确不做多账户：
 
-建议分三步：
+- 不使用 Electron 的账户列表。
+- 不要求用户粘贴 auth cookie。
+- 不支持 cookie 切换。
+- 不做多账户筛选和“全账户汇总”。
 
-1. V1：只支持浏览器当前登录账户。扩展读取当前 `auth` cookie，不要求用户粘贴 cookie，最安全也最稳。
-2. V2：支持多个“浏览器 profile / 容器账户”的元数据，如 Chrome profile、Firefox container、账号备注，但不切换系统登录态。
-3. V3：如果必须支持任意 auth cookie 多账户，采用显式开启的“cookie 切换模式”：
-   - 请求前用 `chrome.cookies.set` 临时写入目标账户 cookie；
-   - 请求后恢复原 cookie；
-   - 存在打断用户当前登录态的风险，必须做成可选项并做确认提示。
+自动识别的数据只保存当前会话信息：
 
-不推荐把 cookie 切换做成默认行为，也不推荐用本地代理冒充纯浏览器扩展。
+```ts
+interface CurrentAccount {
+  workspaceId: string;
+  name: string;
+  recognizedAt: string;
+}
+```
+
+每次页面打开时：
+
+1. 先读取 `chrome.storage` / `GM_getValue` 中的上次识别结果。
+2. 从 URL 或当前 cookie 重新确认工作区。
+3. 如果当前 cookie 已失效，显示“未登录 opencode.ai”，并引导用户重新登录。
+4. 成功后刷新配额和使用记录。
 
 ## 8. 实施阶段
 
@@ -242,7 +269,7 @@ web/
 
 - 记录当前所有 API 返回结构和 UI 行为。
 - 为 quota/usage parser 建立 fixture 测试，防止浏览器移植时抓取逻辑回归。
-- 明确“完整桌面能力”和“浏览器版能力”的边界。
+- 明确“完整桌面能力”和“单用户自动识别浏览器版”的边界。
 
 ### Phase 1：共享核心抽取
 
@@ -259,32 +286,33 @@ web/
 - 逐页验收 Dashboard、Token 统计、每日趋势、使用记录、设置、关于。
 - 验收：明暗主题、中英文、响应式布局、可访问性都通过。
 
-### Phase 3：MV3 扩展
+### Phase 3：篡改猴单用户自动识别版
 
-- 新增 Vite 多入口构建。
-- 实现 background service worker、IndexedDB、alarm 同步、cookie adapter。
-- 实现 side panel、popup、options。
-- 在 Chrome/Edge 加载 unpacked 验证。
-
-### Phase 4：轻量用户脚本（可选）
-
-- 如果确认需要，用同一套 UI 和 domain 代码打包 userscript。
+- 新增 Vite 用户脚本构建入口。
+- 实现 `https://opencode.ai/*` 自动识别当前工作区。
+- 用同一套 UI 和 domain 代码打包 `.user.js`。
 - 验证 opencode.ai CSP 兼容性、浮层布局和同源抓取。
+
+### Phase 4：MV3 扩展（可选）
+
+- 如果之后需要常驻同步或全局 side panel，再升级。
+- 实现 background service worker、IndexedDB、alarm 同步、cookie adapter。
+- 在 Chrome/Edge 加载 unpacked 验证。
 
 ### Phase 5：发布与文档
 
 - 补充构建脚本：
   - `pnpm build:extension`
   - `pnpm build:userscript`
-- 补充安装、权限说明、多账户限制和隐私说明。
+- 补充安装说明、单用户自动识别说明和隐私说明。
 - 跑一遍回归测试，输出发布包。
 
 ## 9. 验收标准
 
-1. 现有页面在 Electron 和浏览器扩展中显示一致，无功能回退。
+1. 现有页面在 Electron 和浏览器版中显示一致，无功能回退。
 2. UI 明显符合 Material 3：正确使用 token、state layer、elevation、shape、type。
-3. 扩展能读取当前登录账户、拉取配额和最近使用记录。
-4. 自动同步在 service worker 被回收后仍能通过 alarm 恢复。
+3. 用户脚本在打开 opencode.ai 时能自动识别当前登录账户和工作区。
+4. 不要求用户手动输入 auth cookie，也不需要多账户管理。
 5. 历史数据不会超过浏览器存储限制，不会把 cookie 明文暴露给页面。
 6. 中英文、明暗主题、窄屏布局可用。
 
@@ -296,6 +324,6 @@ web/
 | 浏览器禁止设置 `Cookie`/`Origin` 等 header | 优先使用同源页面或扩展 cookie 能力，提前做兼容性 spike |
 | MV3 service worker 生命周期短 | 使用 alarm + 打开 UI 时按需刷新，不做无限常驻轮询 |
 | 历史使用记录体积大 | 使用 IndexedDB，限制同步页数，提供回填入口 |
-| 多账户 cookie 切换打断登录 | V1 只支持当前账户；cookie 切换做成显式实验功能 |
+| 多账户需求 | 本版明确不做多账户；如未来需要再单独评估 cookie 切换或本地代理方案 |
 | userscript 受页面 CSP 限制 | 先做最小注入验证，再决定是否保留 |
 | 与 `@material/web` 集成成本 | 用 React wrapper 隔离；如果体积或事件绑定不合适，退化为 Tailwind M3 组件库 |
