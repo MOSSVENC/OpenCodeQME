@@ -19,6 +19,14 @@ function displayModel(value) {
   return value === 'Unknown' ? t('unknownModel') : value;
 }
 
+function displayAccountName(account) {
+  const name = String(account?.name || '').trim();
+  if (name && name !== 'Default' && name !== 'OpenCode') return name;
+  const workspaceId = String(account?.workspace_id || '').trim();
+  if (workspaceId && workspaceId !== 'Default') return workspaceId;
+  return t('accountDefault');
+}
+
 const els = {
   accountName: $('#accountName'),
   syncStatusChip: $('#syncStatusChip'),
@@ -68,6 +76,7 @@ let settings = null;
 let selectedDate = '';
 let recordsPage = 0;
 let toastTimer = null;
+let pageTransitionTimer = null;
 
 function sendRuntime(message) {
   return new Promise((resolve, reject) => {
@@ -324,7 +333,7 @@ function renderOverview() {
     ? windows.reduce((sum, item) => sum + effectiveRemaining(item), 0) / windows.length
     : 0;
   const accountLabel = account
-    ? account.name || account.workspace_id || 'OpenCode'
+    ? displayAccountName(account)
     : t('accountUnrecognized');
   const totals = stats.totals;
   const totalTokens = totals.input + totals.output;
@@ -569,10 +578,7 @@ function renderRecords() {
     recordsPage * PAGE_SIZE,
     recordsPage * PAGE_SIZE + PAGE_SIZE,
   );
-  const accountName = snapshot?.account?.name
-    || (snapshot?.account?.workspace_id && snapshot.account.workspace_id !== 'Default'
-      ? snapshot.account.workspace_id
-      : t('accountDefault'));
+  const accountName = displayAccountName(snapshot?.account);
 
   els.recordsSummary.textContent = query
     ? t('filteredSummary', { count: formatCount(filtered.length) })
@@ -591,7 +597,7 @@ function renderRecords() {
           <td>${esc(accountName)}</td>
           <td>${esc(formatTime(record.created_at))}</td>
           <td>${esc(record.model || t('unknownModel'))}</td>
-          <td>${esc(record.provider || '—')}</td>
+          <td>${esc(record.provider || t('unknownProvider'))}</td>
           <td class="num">${formatCount(record.input_tokens)}</td>
           <td class="num">${formatCount(record.output_tokens)}</td>
           <td class="num">${formatCount(record.uncached_input_tokens ?? record.input_tokens)}</td>
@@ -671,7 +677,9 @@ function renderSettings() {
 
 function renderAccountName() {
   const account = snapshot?.account || null;
-  els.accountName.textContent = account?.name || account?.workspace_id || t('accountUnrecognized');
+  els.accountName.textContent = account
+    ? displayAccountName(account)
+    : t('accountUnrecognized');
 }
 
 function renderAll() {
@@ -698,9 +706,29 @@ function switchPage(page) {
     tab.classList.toggle('active', active);
     tab.setAttribute('aria-selected', active ? 'true' : 'false');
   });
+  const current = document.querySelector('.page.active');
+  const next = document.getElementById(`page-${page}`);
+  if (!next || current === next) return;
+
+  clearTimeout(pageTransitionTimer);
   document.querySelectorAll('.page').forEach((panel) => {
-    panel.classList.toggle('active', panel.id === `page-${page}`);
+    panel.classList.remove(
+      'page-exit',
+      'page-exit-forward',
+      'page-exit-back',
+      'page-enter-forward',
+      'page-enter-back',
+    );
   });
+
+  const pages = Array.from(document.querySelectorAll('.page'));
+  const forward = pages.indexOf(next) > pages.indexOf(current);
+  current.classList.add('page-exit', forward ? 'page-exit-forward' : 'page-exit-back');
+  next.classList.add('active', forward ? 'page-enter-forward' : 'page-enter-back');
+  pageTransitionTimer = setTimeout(() => {
+    current.classList.remove('active', 'page-exit', 'page-exit-forward', 'page-exit-back');
+    next.classList.remove('page-enter-forward', 'page-enter-back');
+  }, 360);
 }
 
 async function loadAll() {

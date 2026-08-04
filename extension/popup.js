@@ -129,6 +129,14 @@ function effectiveQuota(quota) {
   };
 }
 
+function displayAccountName(account) {
+  const name = String(account?.name || '').trim();
+  if (name && name !== 'Default' && name !== 'OpenCode') return name;
+  const workspaceId = String(account?.workspace_id || '').trim();
+  if (workspaceId && workspaceId !== 'Default') return workspaceId;
+  return t('accountDefault');
+}
+
 function renderQuota() {
   const quota = currentSnapshot?.quota;
   const windows = quota?.windows || [];
@@ -203,7 +211,7 @@ function renderSnapshot() {
   const sync = snapshot.sync || null;
   const data = snapshot.snapshot || {};
 
-  els.accountName.textContent = account.name || account.workspace_id || 'OpenCode';
+  els.accountName.textContent = displayAccountName(account);
   animateNumber(els.todayTokens, data.today_tokens || 0, formatTokens);
   els.todayRequests.textContent = t('requestsCount', { count: (data.today_requests || 0).toLocaleString() });
 
