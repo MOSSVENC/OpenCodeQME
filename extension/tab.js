@@ -294,12 +294,18 @@ function emptyRow(columns, message = '暂无数据') {
 
 function renderOverview() {
   const windows = snapshot?.quota?.windows || [];
-  const available = windows.filter((item) => !item.blocked && Number(item.used || 0) < 100).length;
-  const blocked = windows.length - available;
+  const account = snapshot?.account || null;
+  const anyBlocked = windows.some(
+    (item) => item.blocked || Number(item.used || 0) >= 100,
+  );
+  const available = account && !anyBlocked ? 1 : 0;
+  const blocked = account && anyBlocked ? 1 : 0;
   const averageRemaining = windows.length
     ? windows.reduce((sum, item) => sum + effectiveRemaining(item), 0) / windows.length
     : 0;
-  const accountCount = snapshot?.account ? 1 : 0;
+  const accountLabel = account
+    ? account.name || account.workspace_id || 'OpenCode'
+    : '尚未识别';
   const totals = stats.totals;
   const totalTokens = totals.input + totals.output;
   const todayTokens = totals.todayTokens || snapshot?.snapshot?.today_tokens || 0;
@@ -307,7 +313,7 @@ function renderOverview() {
   const totalRecords = records.length || snapshot?.snapshot?.total_records || 0;
 
   els.overviewKpis.innerHTML = [
-    kpi('账户数', accountCount, `${available} 可用 · ${blocked} 阻塞`),
+    kpi('当前账户', accountLabel, account ? `${available} 可用 · ${blocked} 阻塞` : '等待后台同步'),
     kpi('平均剩余配额', `${averageRemaining.toFixed(1)}%`, '三个配额窗口均值'),
     kpi('总 Token', formatTokens(totalTokens), `${formatCount(totals.requests)} 次请求`),
     kpi('今日 Token', formatTokens(todayTokens), `${formatCount(todayRequests)} 次请求`),
@@ -634,7 +640,13 @@ function renderSettings() {
   setLanguage(current.language || 'auto');
 }
 
+function renderAccountName() {
+  const account = snapshot?.account || null;
+  els.accountName.textContent = account?.name || account?.workspace_id || '尚未识别账户';
+}
+
 function renderAll() {
+  renderAccountName();
   renderOverview();
   renderTokenStats();
   renderDaily();
