@@ -5,6 +5,7 @@ globalThis.OpenCodeFetcher = (() => {
   const USAGE_SERVER_ID =
     'bfd684bfc2e4eed05cd0b518f5e4eafd3f3376e3938abb9e536e7c03df831e5c';
   const DEFAULT_WORKSPACE_ID = 'Default';
+  const OPENCODE_ROOT = 'https://opencode.ai';
   const USER_AGENT =
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/136 Safari/537.36';
   const TIMEOUT_MS = 15000;
@@ -13,6 +14,56 @@ globalThis.OpenCodeFetcher = (() => {
   const RE_WORKSPACE_ID = /wrk_[A-Za-z0-9]+/;
   const RE_WORKSPACE_ENTRY =
     /id\s*:\s*"(wrk_[^"]+)"[^{}]*?name\s*:\s*"([^"]*)"/gs;
+
+  function decodeJwtPayload(token) {
+    if (typeof token !== 'string' || !token.includes('.')) return null;
+    const encoded = token.split('.')[1];
+    if (!encoded) return null;
+    try {
+      const base64 = encoded.replaceAll('-', '+').replaceAll('_', '/');
+      const padded = base64.padEnd(
+        base64.length + ((4 - (base64.length % 4)) % 4),
+        '=',
+      );
+      const parsed = JSON.parse(atob(padded));
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function normalizeAuthIdentity(payload) {
+    const raw = String(
+      payload?.email
+      || payload?.preferred_username
+      || payload?.username
+      || payload?.nickname
+      || payload?.name
+      || '',
+    ).trim();
+    if (!raw) return null;
+    const github = raw.match(
+      /^(?:(?:\d+)\+)?([^@]+)@users\.noreply\.github\.com$/i,
+    );
+    if (github) return github[1];
+    return raw;
+  }
+
+  async function getAuthIdentity() {
+    try {
+      const cookie = await chrome.cookies.get({
+        url: OPENCODE_ROOT,
+        name: 'auth',
+      });
+      if (!cookie?.value) return null;
+      const value = cookie.value.startsWith('auth=')
+        ? cookie.value.slice(5)
+        : cookie.value;
+      return normalizeAuthIdentity(decodeJwtPayload(value));
+    } catch {
+      return null;
+    }
+  }
 
   function fetchWithTimeout(url, init, timeoutMs = TIMEOUT_MS) {
     const controller = new AbortController();
@@ -92,19 +143,23 @@ globalThis.OpenCodeFetcher = (() => {
   }
 
   async function identifyAccount(workspaceHint = DEFAULT_WORKSPACE_ID) {
+    const authIdentity = await getAuthIdentity();
     const extracted = extractWorkspaceId(workspaceHint);
     if (extracted) {
       try {
         const refs = await fetchWorkspaceRefs();
         for (const [workspaceId, name] of refs) {
           if (workspaceId === extracted) {
-            return { workspace_id: workspaceId, name: name || 'OpenCode' };
+            return {
+              workspace_id: workspaceId,
+              name: authIdentity || name || 'OpenCode',
+            };
           }
         }
       } catch {
         // name is optional; workspace id is enough
       }
-      return { workspace_id: extracted, name: 'OpenCode' };
+      return { workspace_id: extracted, name: authIdentity || 'OpenCode' };
     }
 
     const workspaceId = await resolveWorkspaceId(workspaceHint);
@@ -117,7 +172,7 @@ globalThis.OpenCodeFetcher = (() => {
     } catch {
       // fall back to generic name
     }
-    return { workspace_id: workspaceId, name };
+    return { workspace_id: workspaceId, name: authIdentity || name };
   }
 
   async function fetchQuota(workspaceId) {
