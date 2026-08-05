@@ -438,7 +438,6 @@ function renderTokenStats() {
     kpi(t('totalTokens'), formatTokens(totalTokens), t('uncachedInputSub', { count: formatTokens(totals.uncached) }), 'wide'),
     kpi(t('totalCost'), formatMoney(totals.cost), t('localRecordsSub'), 'wide'),
     kpi(t('cacheHitRate'), `${hitRate.toFixed(1)}%`, t('cacheReadSub', { count: formatTokens(totals.cacheRead) }), 'wide'),
-    kpi(t('cacheWriteTokens'), formatTokens(totals.cacheWrite), t('cacheWriteSub', { count: formatTokens(totals.cacheWrite) }), 'wide'),
   ].join('');
 
   const recentDaily = stats.dailyStats.slice(-14);
@@ -465,11 +464,6 @@ function renderTokenStats() {
   els.modelStatsTable.innerHTML = stats.modelStats.length
     ? stats.modelStats.map((item) => {
         const total = item.total_input_tokens + item.total_output_tokens;
-        const rate = cacheRate(
-          item.uncached_input_tokens,
-          item.cache_hit_tokens,
-          item.cache_write_tokens,
-        );
         return `
           <tr>
             <td>${esc(displayModel(item.model))}</td>
@@ -478,13 +472,10 @@ function renderTokenStats() {
             <td class="num">${formatCount(item.total_output_tokens)}</td>
             <td class="num">${formatCount(total)}</td>
             <td class="num">${esc(formatMoney(item.total_cost_usd))}</td>
-            <td class="num">${formatCount(item.cache_hit_tokens)}</td>
-            <td class="num">${formatCount(item.cache_write_tokens)}</td>
-            <td class="num">${rate.toFixed(1)}%</td>
           </tr>
         `;
       }).join('')
-    : emptyRow(9, t('noData'));
+    : emptyRow(6, t('noData'));
 
   requestAnimationFrame(() => {
     document.querySelectorAll('.chart-bar[data-height]').forEach((bar) => {
@@ -704,13 +695,12 @@ function renderRecords() {
           <td class="num">${formatCount(record.input_tokens)}</td>
           <td class="num">${formatCount(record.output_tokens)}</td>
           <td class="num">${formatCount(record.cache_read_tokens)}</td>
-          <td class="num">${formatCount(record.cache_write_tokens)}</td>
           <td class="num">${esc(formatMoney(record.cost_usd))}</td>
           <td class="mono">${esc(record.key_id || '—')}</td>
           <td>${record.plan ? `<span class="badge">${esc(displayPlan(record.plan))}</span>` : '—'}</td>
         </tr>
       `).join('')
-    : emptyRow(11, query || recordCategory !== 'all' ? t('noMatchingRecords') : t('noRecords'));
+    : emptyRow(10, query || recordCategory !== 'all' ? t('noMatchingRecords') : t('noRecords'));
 }
 
 function renderSyncStatus() {
