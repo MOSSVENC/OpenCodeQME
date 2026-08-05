@@ -6,6 +6,7 @@ import {
   mkdirSync,
   readFileSync,
   rmSync,
+  writeFileSync,
 } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
@@ -18,29 +19,66 @@ const releaseDir = path.join(root, 'release');
 const packRoot = path.join('/tmp', 'opencodeqme-crx-pack');
 const packExtensionDir = path.join(packRoot, 'extension');
 const pemPath = path.join(releaseDir, 'opencodeqme-extension.pem');
+const manifestPath = path.join(extensionDir, 'manifest.json');
+const packagePath = path.join(root, 'package.json');
 const manifest = JSON.parse(readFileSync(path.join(extensionDir, 'manifest.json'), 'utf8'));
+const VERSION_RE = /^\d+\.\d+\.\d+$/;
 
 const envSuffix = process.env.OPENCODE_RELEASE_SUFFIX?.trim() || '';
 const suffixIndex = process.argv.indexOf('--suffix');
 const argSuffix = suffixIndex >= 0
   ? String(process.argv[suffixIndex + 1] || '').trim()
   : '';
-let suffix = envSuffix || argSuffix || manifest.version;
+let version = envSuffix || argSuffix || '';
+
+console.log(`当前版本: ${manifest.version}`);
 
 if (!envSuffix && !argSuffix) {
   const rl = createInterface({ input: stdin, output: stdout });
-  const entered = (await rl.question(
-    `请输入 release 版本后缀（默认 ${manifest.version}）: `,
-  )).trim();
-  suffix = entered || manifest.version;
+  while (!version) {
+    const entered = (await rl.question(
+      `请输入下一个版本号（直接回车保持 ${manifest.version}）: `,
+    )).trim();
+    if (!entered) {
+      version = manifest.version;
+      break;
+    }
+    if (VERSION_RE.test(entered)) {
+      version = entered;
+      break;
+    }
+    console.log('版本号格式应为 x.y.z，请重新输入');
+  }
   const confirmed = (await rl.question(
-    `确认以 ${suffix} 构建 release？(y/N) `,
+    `确认将版本更新为 ${version} 并构建 release？(y/N) `,
   )).trim().toLowerCase();
   rl.close();
   if (confirmed !== 'y' && confirmed !== 'yes') {
     console.log('已取消 release 构建');
     process.exit(0);
   }
+}
+
+if (!VERSION_RE.test(version)) {
+  throw new Error(`无效版本号: ${version}`);
+}
+
+const suffix = version;
+const nextManifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+const nextPackage = JSON.parse(readFileSync(packagePath, 'utf8'));
+let versionChanged = false;
+if (nextManifest.version !== suffix) {
+  nextManifest.version = suffix;
+  versionChanged = true;
+}
+if (nextPackage.version !== suffix) {
+  nextPackage.version = suffix;
+  versionChanged = true;
+}
+if (versionChanged) {
+  writeFileSync(manifestPath, `${JSON.stringify(nextManifest, null, 2)}\n`);
+  writeFileSync(packagePath, `${JSON.stringify(nextPackage, null, 2)}\n`);
+  console.log(`版本已更新为 ${suffix}`);
 }
 
 const crxPath = path.join(releaseDir, `opencodeqme-extension-${suffix}.crx`);
