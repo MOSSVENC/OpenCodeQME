@@ -19,7 +19,6 @@ const KEY_QUOTA = '68hub.quota';
 const KEY_SNAPSHOT = '68hub.snapshot';
 const KEY_SYNC_STATE = '68hub.sync_state';
 const KEY_RECORD_CACHE = '68hub.record_cache';
-const KEY_UI_MODE = '68hub.ui_mode';
 
 let syncing = false;
 
@@ -34,38 +33,9 @@ async function setSettings(settings) {
   return next;
 }
 
-async function getUiMode() {
-  const stored = await chrome.storage.local.get(KEY_UI_MODE);
-  return stored[KEY_UI_MODE] === 'tab' ? 'tab' : 'popup';
-}
-
-async function setUiMode(mode) {
-  const next = mode === 'tab' ? 'tab' : 'popup';
-  await chrome.storage.local.set({ [KEY_UI_MODE]: next });
-  return next;
-}
-
 async function openTabMode() {
-  const mode = await setUiMode('tab');
   await chrome.tabs.create({ url: chrome.runtime.getURL('tab.html') });
-  return { ui_mode: mode };
-}
-
-async function openPopupMode() {
-  const mode = await setUiMode('popup');
-  await chrome.windows.create({
-    url: chrome.runtime.getURL('popup.html'),
-    type: 'popup',
-    width: 400,
-    height: 620,
-    focused: true,
-  });
-  return { ui_mode: mode };
-}
-
-async function openByUiMode() {
-  const mode = await getUiMode();
-  return mode === 'tab' ? openTabMode() : openPopupMode();
+  return {};
 }
 
 async function getLocalSyncState(workspaceId) {
@@ -415,26 +385,8 @@ async function handleMessage(message) {
       const settings = await getSettings();
       return { settings };
     }
-    case 'GET_UI_MODE': {
-      const uiMode = await getUiMode();
-      return { uiMode };
-    }
-    case 'SET_UI_MODE': {
-      const uiMode = await setUiMode(message.uiMode);
-      return { uiMode };
-    }
     case 'OPEN_TAB': {
       return openTabMode();
-    }
-    case 'OPEN_POPUP': {
-      return openPopupMode();
-    }
-    case 'RETURN_TO_POPUP': {
-      const uiMode = await setUiMode('popup');
-      return { uiMode };
-    }
-    case 'OPEN_BY_MODE': {
-      return openByUiMode();
     }
     case 'GET_RECORDS': {
       const stored = await chrome.storage.local.get(KEY_ACCOUNT);

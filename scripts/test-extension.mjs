@@ -38,6 +38,7 @@ const records = OpenCodeParser.parseUsageResponse(usageText);
 assert(records.length === 2, 'expected two usage records');
 assert(records[0].usg_id === 'usg_1', 'usage id mismatch');
 assert(records[0].input_tokens === 108, 'input tokens should include cache');
+assert(records[0].uncached_input_tokens === 100, 'uncached input tokens mismatch');
 assert(records[0].cache_write_tokens === 3, 'cache write tokens mismatch');
 assert(records[0].cost_usd === 0.3, 'cost usd mismatch');
 assert(records[1].model === 'claude', 'model mismatch');

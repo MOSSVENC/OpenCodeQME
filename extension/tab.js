@@ -331,8 +331,6 @@ function renderOverview() {
   const anyBlocked = windows.some(
     (item) => item.blocked || Number(item.used || 0) >= 100,
   );
-  const available = account && !anyBlocked ? 1 : 0;
-  const blocked = account && anyBlocked ? 1 : 0;
   const averageRemaining = windows.length
     ? windows.reduce((sum, item) => sum + effectiveRemaining(item), 0) / windows.length
     : 0;
@@ -347,7 +345,7 @@ function renderOverview() {
 
   els.overviewKpis.innerHTML = [
     kpi(t('currentWorkspace'), accountLabel, account
-      ? t('availableBlocked', { available, blocked })
+      ? (anyBlocked ? t('accountBlocked') : t('accountAvailable'))
       : t('waitingAccountSync')),
     kpi(t('avgRemainingQuota'), `${averageRemaining.toFixed(1)}%`, t('avgRemainingSub')),
     kpi(t('totalTokens'), formatTokens(totalTokens), `${formatCount(totals.requests)} ${t('requests')}`),
@@ -705,7 +703,6 @@ function renderRecords() {
           <td>${esc(record.model || t('unknownModel'))}</td>
           <td class="num">${formatCount(record.input_tokens)}</td>
           <td class="num">${formatCount(record.output_tokens)}</td>
-          <td class="num">${formatCount(record.uncached_input_tokens ?? record.input_tokens)}</td>
           <td class="num">${formatCount(record.cache_read_tokens)}</td>
           <td class="num">${formatCount(record.cache_write_tokens)}</td>
           <td class="num">${esc(formatMoney(record.cost_usd))}</td>
@@ -713,7 +710,7 @@ function renderRecords() {
           <td>${record.plan ? `<span class="badge">${esc(displayPlan(record.plan))}</span>` : '—'}</td>
         </tr>
       `).join('')
-    : emptyRow(12, query || recordCategory !== 'all' ? t('noMatchingRecords') : t('noRecords'));
+    : emptyRow(11, query || recordCategory !== 'all' ? t('noMatchingRecords') : t('noRecords'));
 }
 
 function renderSyncStatus() {
@@ -920,13 +917,8 @@ async function runSync() {
   }
 }
 
-async function backToPopup() {
-  try {
-    await sendRuntime({ type: 'RETURN_TO_POPUP' });
-    window.close();
-  } catch (error) {
-    showToast(error.message);
-  }
+function backToPopup() {
+  window.close();
 }
 
 function shiftSelectedDate(delta) {

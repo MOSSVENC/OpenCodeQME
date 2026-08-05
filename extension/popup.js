@@ -286,16 +286,6 @@ function bindEvents() {
 async function init() {
   bindEvents();
   try {
-    const modeResponse = await sendRuntime({ type: 'GET_UI_MODE' });
-    if (modeResponse.uiMode === 'tab') {
-      await sendRuntime({ type: 'OPEN_TAB' });
-      window.close();
-      return;
-    }
-  } catch {
-    // If the background cannot answer, keep showing the compact preview.
-  }
-  try {
     const settingsResponse = await sendRuntime({ type: 'GET_SETTINGS' });
     currentSettings = settingsResponse.settings || {};
     globalThis.OpenCodeI18n.setLanguage(currentSettings.language || 'auto');
