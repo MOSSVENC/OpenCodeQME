@@ -385,25 +385,42 @@ function renderOverview() {
     : `<div class="empty-state">${t('noQuotaData')}</div>`;
 
   const topModels = stats.modelStats.slice(0, 3);
-  const maxTopTokens = Math.max(
-    ...topModels.map((item) => item.total_input_tokens + item.total_output_tokens),
-    1,
-  );
+  const topInput = topModels.reduce((sum, item) => sum + Number(item.total_input_tokens || 0), 0);
+  const topOutput = topModels.reduce((sum, item) => sum + Number(item.total_output_tokens || 0), 0);
+  const topTotal = topInput + topOutput;
+  const inputAngle = topTotal > 0 ? (topInput / topTotal) * 360 : 0;
+  const donutStyle = topTotal > 0
+    ? `background: conic-gradient(var(--primary) 0deg ${inputAngle}deg, var(--secondary) ${inputAngle}deg 360deg);`
+    : '';
   els.topModelPanel.innerHTML = topModels.length
-    ? topModels.map((item, index) => {
-        const total = item.total_input_tokens + item.total_output_tokens;
-        const width = Math.max(3, Math.round((total / maxTopTokens) * 100));
-        return `
-          <div class="model-rank-row">
-            <span class="model-rank-name">${esc(displayModel(item.model))}</span>
-            <span class="model-rank-tokens">${formatTokens(total)}</span>
-            <span class="model-rank-sub">
-              <span class="progress-track"><span class="progress-fill" data-used="${width}"></span></span>
-            <span>${t('requestsCount', { count: item.request_count })}</span>
-            </span>
+    ? `
+      <div class="model-donut-layout">
+        <div class="model-donut-chart" style="${donutStyle}">
+          <div class="model-donut-center">
+            <strong>${formatTokens(topTotal)}</strong>
+            <span>${t('totalTokens')}</span>
           </div>
-        `;
-      }).join('')
+        </div>
+        <div class="model-donut-list">
+          ${topModels.map((item, index) => {
+            const total = item.total_input_tokens + item.total_output_tokens;
+            return `
+              <div class="model-donut-row">
+                <span class="model-donut-rank">#${index + 1}</span>
+                <span class="model-donut-name">${esc(displayModel(item.model))}</span>
+                <span class="model-donut-tokens">${formatTokens(total)}</span>
+                <span class="model-donut-sub">${t('requestsCount', { count: item.request_count })}</span>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+      <div class="model-donut-legend">
+        <span class="model-donut-legend-item"><i style="background:var(--primary)"></i>${t('input')} ${formatTokens(topInput)}</span>
+        <span class="model-donut-legend-item"><i style="background:var(--secondary)"></i>${t('output')} ${formatTokens(topOutput)}</span>
+        <span class="model-donut-total">${t('total')} ${formatTokens(topTotal)}</span>
+      </div>
+    `
     : `<div class="empty-state">${t('noData')}</div>`;
 
   els.overviewRecordCount.textContent = t('recordsCount', { count: formatCount(totalRecords) });
