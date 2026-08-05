@@ -5,8 +5,9 @@
   "author": "OpenCodeQME",
   "license": "MIT",
   "scripts": {
-    "build:extension": "node scripts/build-extension.mjs",
-    "build:crx": "node scripts/pack-extension-crx.mjs",
+    "build": "bash build.sh",
+    "build:extension": "bash build-test.sh",
+    "build:crx": "bash build.sh",
     "mock:opencode": "node scripts/mock-opencode-server.mjs",
     "test:extension": "node scripts/test-extension.mjs"
   }

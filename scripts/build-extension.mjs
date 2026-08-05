@@ -8,7 +8,16 @@ const extensionDir = path.join(root, 'extension');
 const releaseDir = path.join(root, 'release');
 
 const manifest = JSON.parse(readFileSync(path.join(extensionDir, 'manifest.json'), 'utf8'));
-const zipPath = path.join(releaseDir, `opencodeqme-extension-${manifest.version}.zip`);
+const isRelease = process.argv.includes('--release');
+const suffixIndex = process.argv.indexOf('--suffix');
+const suffix = suffixIndex >= 0
+  ? String(process.argv[suffixIndex + 1] || manifest.version).trim()
+  : manifest.version;
+const outputDir = isRelease ? releaseDir : path.join(root, 'release-test');
+const zipName = isRelease
+  ? `opencodeqme-extension-${suffix}.zip`
+  : 'opencodeqme-extension.zip';
+const zipPath = path.join(outputDir, zipName);
 execFileSync('node', [path.join(root, 'scripts/test-extension.mjs')], {
   cwd: root,
   stdio: 'inherit',
@@ -28,7 +37,7 @@ for (const file of [
   });
 }
 
-if (!existsSync(releaseDir)) mkdirSync(releaseDir, { recursive: true });
+if (!existsSync(outputDir)) mkdirSync(outputDir, { recursive: true });
 rmSync(zipPath, { force: true });
 execFileSync('zip', ['-r', zipPath, 'extension'], {
   cwd: root,

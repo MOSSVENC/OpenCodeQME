@@ -7,6 +7,8 @@ import {
   readFileSync,
   rmSync,
 } from 'node:fs';
+import { createInterface } from 'node:readline/promises';
+import { stdin, stdout } from 'node:process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -17,9 +19,38 @@ const packRoot = path.join('/tmp', 'opencodeqme-crx-pack');
 const packExtensionDir = path.join(packRoot, 'extension');
 const pemPath = path.join(releaseDir, 'opencodeqme-extension.pem');
 const manifest = JSON.parse(readFileSync(path.join(extensionDir, 'manifest.json'), 'utf8'));
-const crxPath = path.join(releaseDir, `opencodeqme-extension-${manifest.version}.crx`);
 
-execFileSync('node', [path.join(root, 'scripts/build-extension.mjs')], {
+const envSuffix = process.env.OPENCODE_RELEASE_SUFFIX?.trim() || '';
+const suffixIndex = process.argv.indexOf('--suffix');
+const argSuffix = suffixIndex >= 0
+  ? String(process.argv[suffixIndex + 1] || '').trim()
+  : '';
+let suffix = envSuffix || argSuffix || manifest.version;
+
+if (!envSuffix && !argSuffix) {
+  const rl = createInterface({ input: stdin, output: stdout });
+  const entered = (await rl.question(
+    `请输入 release 版本后缀（默认 ${manifest.version}）: `,
+  )).trim();
+  suffix = entered || manifest.version;
+  const confirmed = (await rl.question(
+    `确认以 ${suffix} 构建 release？(y/N) `,
+  )).trim().toLowerCase();
+  rl.close();
+  if (confirmed !== 'y' && confirmed !== 'yes') {
+    console.log('已取消 release 构建');
+    process.exit(0);
+  }
+}
+
+const crxPath = path.join(releaseDir, `opencodeqme-extension-${suffix}.crx`);
+
+execFileSync('node', [
+  path.join(root, 'scripts/build-extension.mjs'),
+  '--release',
+  '--suffix',
+  suffix,
+], {
   cwd: root,
   stdio: 'inherit',
 });
@@ -49,6 +80,7 @@ if (existsSync(tempPem)) {
 rmSync(packRoot, { recursive: true, force: true });
 
 console.log(`extension crx: ${crxPath}`);
+console.log(`release suffix: ${suffix}`);
 if (existsSync(pemPath)) {
   console.log(`extension key: ${pemPath} (keep private, do not commit)`);
 }

@@ -26,9 +26,10 @@ OpenCodeQME 全称是 **OpenCode Quota Monitor Extension**，用于监控 OpenCo
 ## 构建
 
 ```bash
-npm run test:extension
-npm run build:extension
-npm run build:crx
+./build-test.sh
+./build.sh
 ```
 
-构建产物输出到 `release/opencodeqme-extension-<version>.zip` 和 `release/opencodeqme-extension-<version>.crx`。
+- `./build-test.sh` 输出到 `release-test/opencodeqme-extension.zip`，不带版本后缀。
+- `./build.sh` 在终端确认版本后缀后，输出到 `release/opencodeqme-extension-<suffix>.zip` 和 `release/opencodeqme-extension-<suffix>.crx`。
+- 自动化构建可用 `OPENCODE_RELEASE_SUFFIX=0.1.0 ./build.sh` 跳过确认。

@@ -26,9 +26,10 @@ You can also install `release/opencodeqme-extension-0.1.0.crx`.
 ## Build
 
 ```bash
-npm run test:extension
-npm run build:extension
-npm run build:crx
+./build-test.sh
+./build.sh
 ```
 
-Artifacts are written to `release/opencodeqme-extension-<version>.zip` and `release/opencodeqme-extension-<version>.crx`.
+- `./build-test.sh` writes `release-test/opencodeqme-extension.zip` without a version suffix.
+- `./build.sh` asks for a release suffix in the terminal, then writes `release/opencodeqme-extension-<suffix>.zip` and `release/opencodeqme-extension-<suffix>.crx`.
+- For automation, use `OPENCODE_RELEASE_SUFFIX=0.1.0 ./build.sh` to skip the prompt.
