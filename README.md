@@ -21,7 +21,7 @@ OpenCodeQME 全称是 **OpenCode Quota Monitor Extension**，用于监控 OpenCo
 2. 开启“开发者模式”。
 3. 选择“加载已解压的扩展程序”，加载 `extension` 目录。
 
-也可以使用 `release/opencodeqme-extension-0.1.0.crx` 安装。
+也可以使用 `release/opencodeqme-extension-0.1.1.crx` 安装。
 
 ## 构建
 
@@ -32,4 +32,4 @@ OpenCodeQME 全称是 **OpenCode Quota Monitor Extension**，用于监控 OpenCo
 
 - `./build-test.sh` 输出到 `release-test/opencodeqme-extension.zip`，不带版本后缀，不改版本号。
 - `./build.sh` 会先显示当前版本，再在终端输入下一个版本号（直接回车保持当前版本），确认后自动更新 `extension/manifest.json` 和 `package.json`，并按该版本号输出 `release/opencodeqme-extension-<version>.zip` 和 `release/opencodeqme-extension-<version>.crx`。
-- 自动化构建可用 `OPENCODE_RELEASE_SUFFIX=0.1.0 ./build.sh` 跳过交互确认。
+- 自动化构建可用 `OPENCODE_RELEASE_SUFFIX=0.1.1 ./build.sh` 跳过交互确认。

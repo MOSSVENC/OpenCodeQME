@@ -1,10 +1,16 @@
 {
   "manifest_version": 3,
   "name": "OpenCodeQME",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "OpenCode Go single-user usage dashboard with full local history.",
-  "permissions": ["alarms", "cookies", "storage"],
-  "host_permissions": ["https://opencode.ai/*"],
+  "permissions": [
+    "alarms",
+    "cookies",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://opencode.ai/*"
+  ],
   "background": {
     "service_worker": "background.js"
   },
