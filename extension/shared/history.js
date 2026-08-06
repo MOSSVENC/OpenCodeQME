@@ -2,7 +2,6 @@ globalThis.HistoryStore = (() => {
   const DB_NAME = '68hub-history';
   const DB_VERSION = 1;
   const RECORDS = 'usage_records';
-  const SYNC_STATE = 'sync_state';
 
   let dbPromise = null;
 
@@ -25,12 +24,6 @@ globalThis.HistoryStore = (() => {
           store.createIndex('workspace_time', ['workspace_id', 'created_at'], {
             unique: false,
           });
-        }
-        if (!db.objectStoreNames.contains(SYNC_STATE)) {
-          db.createObjectStore(SYNC_STATE, { keyPath: 'workspace_id' });
-        }
-        if (!db.objectStoreNames.contains('meta')) {
-          db.createObjectStore('meta', { keyPath: 'id' });
         }
       };
       request.onsuccess = () => resolve(request.result);
@@ -58,56 +51,12 @@ globalThis.HistoryStore = (() => {
     return records.length;
   }
 
-  async function saveSyncState(state) {
-    const db = await openDb();
-    const tx = db.transaction(SYNC_STATE, 'readwrite');
-    tx.objectStore(SYNC_STATE).put(state);
-    await new Promise((resolve, reject) => {
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error);
-    });
-  }
-
-  async function getSyncState(workspaceId) {
-    const db = await openDb();
-    const tx = db.transaction(SYNC_STATE, 'readonly');
-    return requestToPromise(tx.objectStore(SYNC_STATE).get(workspaceId));
-  }
-
   async function getAllRecords(workspaceId) {
     const db = await openDb();
     const tx = db.transaction(RECORDS, 'readonly');
     const index = tx.objectStore(RECORDS).index('workspace_id');
     const records = await requestToPromise(index.getAll(IDBKeyRange.only(workspaceId)));
     records.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
-    return records;
-  }
-
-  async function getRecentRecords(workspaceId, limit = 50) {
-    const db = await openDb();
-    const tx = db.transaction(RECORDS, 'readonly');
-    const index = tx.objectStore(RECORDS).index('workspace_time');
-    const range = IDBKeyRange.bound(
-      [workspaceId, ''],
-      [workspaceId, '\uffff'],
-      false,
-      false,
-    );
-    const records = [];
-    await new Promise((resolve, reject) => {
-      const cursorRequest = index.openCursor(range, 'prev');
-      cursorRequest.onsuccess = () => {
-        const cursor = cursorRequest.result;
-        if (!cursor || records.length >= limit) {
-          resolve();
-          return;
-        }
-        records.push(cursor.value);
-        cursor.continue();
-      };
-      cursorRequest.onerror = () => reject(cursorRequest.error);
-    });
     return records;
   }
 
@@ -121,8 +70,7 @@ globalThis.HistoryStore = (() => {
     return date.toISOString().slice(0, 10);
   }
 
-  async function buildSnapshot(workspaceId) {
-    const records = await getAllRecords(workspaceId);
+  function aggregateSnapshot(records) {
     const today = todayKey();
     const monthStart = daysAgoKey(30);
     const daily = new Map();
@@ -175,12 +123,17 @@ globalThis.HistoryStore = (() => {
       total_records: records.length,
       today_tokens: todayTokens,
       today_requests: todayRequests,
-      recent_records: records.slice(0, 50),
+      recent_records: [...records].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 50),
       daily_stats: [...daily.values()].sort((a, b) => a.date.localeCompare(b.date)),
       model_stats: [...models.values()].sort(
         (a, b) => b.input_tokens + b.output_tokens - (a.input_tokens + a.output_tokens),
       ),
     };
+  }
+
+  async function buildSnapshot(workspaceId) {
+    const records = await getAllRecords(workspaceId);
+    return aggregateSnapshot(records);
   }
 
   async function clearHistory(workspaceId) {
@@ -199,10 +152,8 @@ globalThis.HistoryStore = (() => {
 
   return {
     saveRecords,
-    saveSyncState,
-    getSyncState,
     getAllRecords,
-    getRecentRecords,
+    aggregateSnapshot,
     buildSnapshot,
     clearHistory,
   };

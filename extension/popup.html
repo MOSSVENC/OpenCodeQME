@@ -4,12 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OpenCodeQME</title>
+    <link rel="icon" type="image/png" href="icon.png" />
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
     <div class="app" id="app">
       <header class="preview-header">
-        <div class="brand-mark" aria-hidden="true">OC</div>
+        <img class="brand-mark" src="icon.png" alt="" aria-hidden="true" />
         <div class="header-copy">
           <h1>OpenCodeQME</h1>
           <p id="accountName" data-i18n="accountDetecting">正在自动识别账户...</p>
@@ -64,6 +65,7 @@
       </div>
     </div>
     <script src="shared/i18n.js"></script>
+    <script src="shared/ui.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

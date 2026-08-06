@@ -150,7 +150,6 @@ globalThis.OpenCodeParser = (() => {
         usg_id: usgId,
         created_at: createdAt,
         model: readString('model'),
-        provider: readString('provider'),
         input_tokens: input + cacheRead + cacheWrite5m + cacheWrite1h,
         output_tokens: output,
         uncached_input_tokens: input,

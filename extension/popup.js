@@ -1,5 +1,14 @@
-const $ = (selector) => document.querySelector(selector);
 const t = (key, vars) => globalThis.OpenCodeI18n.t(key, vars);
+const {
+  $,
+  sendRuntime,
+  esc,
+  formatTokens,
+  formatMoney,
+  formatTime,
+  formatReset,
+  displayAccountName,
+} = globalThis.OpenCodeUI;
 
 const els = {
   accountName: $('#accountName'),
@@ -18,68 +27,7 @@ const els = {
 };
 
 let currentSnapshot = null;
-let currentSettings = null;
 const numberAnimations = new Map();
-
-function sendRuntime(message) {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage(message, (response) => {
-      const error = chrome.runtime.lastError;
-      if (error) {
-        reject(new Error(error.message));
-        return;
-      }
-      if (!response?.ok) {
-        reject(new Error(response?.error || 'background error'));
-        return;
-      }
-      resolve(response);
-    });
-  });
-}
-
-function esc(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
-function formatTokens(value) {
-  const v = Number(value || 0);
-  if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(2)}B`;
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(2)}M`;
-  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
-  return v.toLocaleString();
-}
-
-function formatMoney(value) {
-  return `$${Number(value || 0).toFixed(6)}`;
-}
-
-function formatTime(value) {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  const locale = globalThis.OpenCodeI18n.getLanguage() === 'en' ? 'en-US' : 'zh-CN';
-  return date.toLocaleString(locale, {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function formatReset(value) {
-  const seconds = Number(value || 0);
-  if (seconds <= 0) return '';
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const time = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
-  return t('resetAfter', { time });
-}
 
 function animateNumber(element, value, formatter = (v) => v.toLocaleString()) {
   const target = Number(value || 0);
@@ -127,14 +75,6 @@ function effectiveQuota(quota) {
     remaining: Math.round(Number(source.effective_remaining ?? source.remaining ?? 0)),
     label: source.label,
   };
-}
-
-function displayAccountName(account) {
-  const name = String(account?.name || '').trim();
-  if (name) return name;
-  const workspaceId = String(account?.workspace_id || '').trim();
-  if (workspaceId) return workspaceId;
-  return t('accountDefault');
 }
 
 function renderQuota() {
@@ -287,8 +227,8 @@ async function init() {
   bindEvents();
   try {
     const settingsResponse = await sendRuntime({ type: 'GET_SETTINGS' });
-    currentSettings = settingsResponse.settings || {};
-    globalThis.OpenCodeI18n.setLanguage(currentSettings.language || 'auto');
+    const settings = settingsResponse.settings || {};
+    globalThis.OpenCodeI18n.setLanguage(settings.language || 'auto');
     document.documentElement.lang = globalThis.OpenCodeI18n.getLanguage();
     globalThis.OpenCodeI18n.apply();
   } catch {

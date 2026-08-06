@@ -1,7 +1,13 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+} from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { packCrx } from './pack-crx.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const extensionDir = path.join(root, 'extension');
@@ -18,6 +24,14 @@ const zipName = isRelease
   ? `opencodeqme-extension-${suffix}.zip`
   : 'opencodeqme-extension.zip';
 const zipPath = path.join(outputDir, zipName);
+const withCrx = process.argv.includes('--crx');
+const packRoot = path.join('/tmp', 'opencodeqme-crx-test-pack');
+const pemPath = path.join(releaseDir, 'opencodeqme-extension.pem');
+const crxName = isRelease
+  ? `opencodeqme-extension-${suffix}.crx`
+  : 'opencodeqme-extension.crx';
+const crxPath = path.join(outputDir, crxName);
+
 execFileSync('node', [path.join(root, 'scripts/test-extension.mjs')], {
   cwd: root,
   stdio: 'inherit',
@@ -27,6 +41,7 @@ for (const file of [
   'popup.js',
   'tab.js',
   'shared/i18n.js',
+  'shared/ui.js',
   'shared/parsers.js',
   'shared/fetchers.js',
   'shared/history.js',
@@ -46,3 +61,8 @@ execFileSync('zip', ['-r', zipPath, 'extension'], {
 
 console.log(`extension manifest v${manifest.version} validated`);
 console.log(`extension bundle: ${zipPath}`);
+
+if (withCrx) {
+  packCrx({ extensionDir, outputPath: crxPath, pemPath, packRoot });
+  console.log(`extension crx: ${crxPath}`);
+}

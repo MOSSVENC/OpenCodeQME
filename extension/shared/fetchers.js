@@ -71,53 +71,30 @@ globalThis.OpenCodeFetcher = (() => {
     return refs;
   }
 
-  async function resolveWorkspaceId(workspaceHint = DEFAULT_WORKSPACE_ID) {
-    const resolved = extractWorkspaceId(workspaceHint);
-    if (resolved) return resolved;
-
-    const refs = await fetchWorkspaceRefs();
-    const hint = String(workspaceHint || '').trim();
-    if (hint) {
-      for (const [workspaceId, name] of refs) {
-        if (
-          workspaceId.toLowerCase() === hint.toLowerCase() ||
-          name.toLowerCase() === hint.toLowerCase()
-        ) {
-          return workspaceId;
-        }
-      }
-    }
-    if (refs.length) return refs[0][0];
-    throw new Error('无法解析 OpenCode Go 工作区 ID');
-  }
-
   async function identifyAccount(workspaceHint = DEFAULT_WORKSPACE_ID) {
+    const hint = String(workspaceHint || '').trim();
     const extracted = extractWorkspaceId(workspaceHint);
-    if (extracted) {
-      try {
-        const refs = await fetchWorkspaceRefs();
-        for (const [workspaceId, name] of refs) {
-          if (workspaceId === extracted) {
-            return { workspace_id: workspaceId, name: name || 'OpenCode' };
-          }
-        }
-      } catch {
-        // name is optional; workspace id is enough
-      }
-      return { workspace_id: extracted, name: 'OpenCode' };
+    let refs = [];
+    try {
+      refs = await fetchWorkspaceRefs();
+    } catch {
+      // Workspace id is enough; name lookup is optional.
     }
 
-    const workspaceId = await resolveWorkspaceId(workspaceHint);
-    let name = 'OpenCode';
-    try {
-      const refs = await fetchWorkspaceRefs();
-      for (const [id, refName] of refs) {
-        if (id === workspaceId) name = refName || name;
-      }
-    } catch {
-      // fall back to generic name
+    if (extracted) {
+      const found = refs.find(([workspaceId]) => workspaceId === extracted);
+      return { workspace_id: extracted, name: found?.[1] || 'OpenCode' };
     }
-    return { workspace_id: workspaceId, name };
+
+    const matched = refs.find(([workspaceId, name]) => (
+      hint && (
+        workspaceId.toLowerCase() === hint.toLowerCase()
+        || name.toLowerCase() === hint.toLowerCase()
+      )
+    ));
+    const selected = matched || refs[0];
+    if (!selected) throw new Error('无法解析 OpenCode Go 工作区 ID');
+    return { workspace_id: selected[0], name: selected[1] || 'OpenCode' };
   }
 
   async function fetchQuota(workspaceId) {
@@ -200,10 +177,6 @@ globalThis.OpenCodeFetcher = (() => {
   }
 
   return {
-    DEFAULT_WORKSPACE_ID,
-    USAGE_PAGE_SIZE: 50,
-    extractWorkspaceId,
-    resolveWorkspaceId,
     identifyAccount,
     fetchQuota,
     fetchUsagePage,

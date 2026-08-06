@@ -53,3 +53,6 @@ service.json
 # opencode skill files
 .agents/
 skills-lock.json
+
+# Local code graph index
+.codegraph/

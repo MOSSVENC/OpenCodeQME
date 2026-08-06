@@ -112,15 +112,11 @@ button {
 }
 
 .brand-mark {
-  display: grid;
-  place-items: center;
+  display: block;
   width: 42px;
   height: 42px;
   border-radius: 10px;
-  background: var(--primary);
-  color: var(--on-primary);
-  font-size: 14px;
-  font-weight: 800;
+  object-fit: contain;
   flex-shrink: 0;
 }
 
@@ -671,43 +667,6 @@ main {
   color: var(--error);
   font-size: 10px;
   font-weight: 700;
-}
-
-.model-rank-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 4px 10px;
-}
-
-.model-rank-name {
-  font-size: 12px;
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.model-rank-tokens {
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-
-.model-rank-sub {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.model-rank-sub .progress-track {
-  flex: 1;
-}
-
-.model-rank-sub span {
-  width: 46px;
-  color: var(--on-surface-variant);
-  font-size: 9px;
-  text-align: right;
 }
 
 .model-donut-layout {

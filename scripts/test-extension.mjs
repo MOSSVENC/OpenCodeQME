@@ -5,8 +5,9 @@ import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 require(path.join(root, 'extension/shared/parsers.js'));
+require(path.join(root, 'extension/shared/history.js'));
 
-const { OpenCodeParser } = globalThis;
+const { OpenCodeParser, HistoryStore } = globalThis;
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -43,4 +44,37 @@ assert(records[0].cache_write_tokens === 3, 'cache write tokens mismatch');
 assert(records[0].cost_usd === 0.3, 'cost usd mismatch');
 assert(records[1].model === 'claude', 'model mismatch');
 
-console.log('extension parser tests passed');
+const today = new Date().toISOString().slice(0, 10);
+const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+const snapshot = HistoryStore.aggregateSnapshot([
+  {
+    usg_id: 'usg_snap_1',
+    created_at: `${today}T00:00:00.000Z`,
+    model: 'gpt-5',
+    input_tokens: 100,
+    output_tokens: 20,
+    cost_usd: 0.2,
+  },
+  {
+    usg_id: 'usg_snap_2',
+    created_at: `${today}T01:00:00.000Z`,
+    model: 'claude',
+    input_tokens: 20,
+    output_tokens: 10,
+    cost_usd: 0.1,
+  },
+  {
+    usg_id: 'usg_snap_3',
+    created_at: `${yesterday}T01:00:00.000Z`,
+    model: 'gpt-5',
+    input_tokens: 5,
+    output_tokens: 5,
+    cost_usd: 0.05,
+  },
+]);
+assert(snapshot.total_records === 3, 'snapshot record count mismatch');
+assert(snapshot.today_tokens === 150, 'snapshot today tokens mismatch');
+assert(snapshot.today_requests === 2, 'snapshot today requests mismatch');
+assert(snapshot.model_stats[0].model === 'gpt-5', 'snapshot model ranking mismatch');
+
+console.log('extension parser and history tests passed');

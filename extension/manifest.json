@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "OpenCodeQME",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "OpenCode Go single-user usage dashboard with full local history.",
   "permissions": [
     "alarms",

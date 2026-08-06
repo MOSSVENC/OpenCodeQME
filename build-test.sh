@@ -2,4 +2,4 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec node "$ROOT/scripts/build-extension.mjs" "$@"
+exec node "$ROOT/scripts/build-extension.mjs" --crx "$@"

@@ -77,67 +77,6 @@ async function clearRecordCache(workspaceId) {
   await chrome.storage.local.set({ [KEY_RECORD_CACHE]: next });
 }
 
-function aggregateSnapshot(records) {
-  const today = new Date().toISOString().slice(0, 10);
-  const monthStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
-  const daily = new Map();
-  const models = new Map();
-  let todayTokens = 0;
-  let todayRequests = 0;
-
-  for (const record of records) {
-    const date = String(record.created_at || '').slice(0, 10);
-    const model = String(record.model || 'Unknown');
-    const input = Number(record.input_tokens || 0);
-    const output = Number(record.output_tokens || 0);
-    const cost = Number(record.cost_usd || 0);
-    if (date === today) {
-      todayTokens += input + output;
-      todayRequests += 1;
-    }
-    if (date >= monthStart) {
-      const day = daily.get(date) || {
-        date,
-        request_count: 0,
-        input_tokens: 0,
-        output_tokens: 0,
-        cost_usd: 0,
-      };
-      day.request_count += 1;
-      day.input_tokens += input;
-      day.output_tokens += output;
-      day.cost_usd += cost;
-      daily.set(date, day);
-
-      const item = models.get(model) || {
-        model,
-        request_count: 0,
-        input_tokens: 0,
-        output_tokens: 0,
-        cost_usd: 0,
-      };
-      item.request_count += 1;
-      item.input_tokens += input;
-      item.output_tokens += output;
-      item.cost_usd += cost;
-      models.set(model, item);
-    }
-  }
-
-  return {
-    total_records: records.length,
-    today_tokens: todayTokens,
-    today_requests: todayRequests,
-    recent_records: [...records].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 50),
-    daily_stats: [...daily.values()].sort((a, b) => a.date.localeCompare(b.date)),
-    model_stats: [...models.values()].sort(
-      (a, b) => b.input_tokens + b.output_tokens - (a.input_tokens + a.output_tokens),
-    ),
-  };
-}
-
 function withTimeout(promise, ms) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('history snapshot timeout')), ms);
@@ -168,7 +107,7 @@ async function refreshSnapshot() {
     HistoryStore.buildSnapshot(account.workspace_id),
     1500,
   ).catch(() => null);
-  const snapshot = historySnapshot || aggregateSnapshot(cache.records);
+  const snapshot = historySnapshot || HistoryStore.aggregateSnapshot(cache.records);
   const payload = {
     account,
     quota,
@@ -193,11 +132,10 @@ function updateBadge(quota) {
   chrome.action.setBadgeBackgroundColor({ color: used == null || used < 80 ? '#006a6a' : '#ba1a1a' });
 }
 
-async function fetchPage(workspaceId, page, syncAt) {
+async function fetchPage(workspaceId, page) {
   const records = await OpenCodeFetcher.fetchUsagePage(workspaceId, page);
   for (const record of records) {
     record.workspace_id = workspaceId;
-    record.synced_at = syncAt;
   }
   return records;
 }
@@ -208,10 +146,11 @@ async function syncOnce({ maxPages = 10, includeUpdates = true } = {}) {
   const syncAt = new Date().toISOString();
   let pagesFetched = 0;
   let recordsWritten = 0;
+  let workspaceId = 'Default';
 
   try {
     const account = await OpenCodeFetcher.identifyAccount('Default');
-    const workspaceId = account.workspace_id;
+    workspaceId = account.workspace_id;
     const quota = await OpenCodeFetcher.fetchQuota(workspaceId);
 
     const state = await getLocalSyncState(workspaceId);
@@ -226,7 +165,7 @@ async function syncOnce({ maxPages = 10, includeUpdates = true } = {}) {
       ? Math.min(deepest + 1, 5)
       : 0;
     for (let page = 0; page < updatePages; page += 1) {
-      const records = await fetchPage(workspaceId, page, syncAt);
+      const records = await fetchPage(workspaceId, page);
       pagesFetched += 1;
       recordsWritten += records.length;
       allRecords.push(...records);
@@ -243,7 +182,7 @@ async function syncOnce({ maxPages = 10, includeUpdates = true } = {}) {
       const startPage = Math.max(0, deepest + 1);
       let page = startPage;
       while (page < startPage + limit) {
-        const records = await fetchPage(workspaceId, page, syncAt);
+        const records = await fetchPage(workspaceId, page);
         pagesFetched += 1;
         recordsWritten += records.length;
         allRecords.push(...records);
@@ -273,7 +212,6 @@ async function syncOnce({ maxPages = 10, includeUpdates = true } = {}) {
       [KEY_QUOTA]: quota,
     });
     await HistoryStore.saveRecords(allRecords);
-    await HistoryStore.saveSyncState(syncState);
     await saveLocalSyncState(syncState);
     await appendRecordCache(workspaceId, allRecords);
     await refreshSnapshot();
@@ -289,8 +227,7 @@ async function syncOnce({ maxPages = 10, includeUpdates = true } = {}) {
   } catch (error) {
     const message = String(error?.message || error);
     try {
-      const state = await getLocalSyncState('Default');
-      const workspaceId = state?.workspace_id || 'Default';
+      const state = await getLocalSyncState(workspaceId);
       const syncState = {
         workspace_id: workspaceId,
         deepest_page: state?.deepest_page ?? -1,
@@ -298,7 +235,6 @@ async function syncOnce({ maxPages = 10, includeUpdates = true } = {}) {
         last_sync_status: 'error',
         last_sync_error: message,
       };
-      await HistoryStore.saveSyncState(syncState);
       await saveLocalSyncState(syncState);
       await refreshSnapshot();
     } catch {
