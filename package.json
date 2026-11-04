@@ -2,13 +2,23 @@
   "name": "opencodeqme",
   "version": "0.1.2",
   "description": "OpenCode Quota Monitor Extension",
-  "author": "OpenCodeQME",
+  "author": "MOSSVENC",
   "license": "MIT",
   "scripts": {
     "build": "bash build.sh",
     "build:extension": "bash build-test.sh",
     "build:crx": "bash build.sh",
     "mock:opencode": "node scripts/mock-opencode-server.mjs",
-    "test:extension": "node scripts/test-extension.mjs"
+    "test:extension": "node scripts/test-extension.mjs",
+    "test": "node scripts/test-extension.mjs"
+  },
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MOSSVENC/OpenCodeQME.git"
+  },
+  "homepage": "https://github.com/MOSSVENC/OpenCodeQME#readme",
+  "engines": {
+    "node": ">=20"
   }
 }

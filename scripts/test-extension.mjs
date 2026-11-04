@@ -1,9 +1,12 @@
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const manifest = JSON.parse(readFileSync(path.join(root, 'extension/manifest.json'), 'utf8'));
+const packageJson = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
 require(path.join(root, 'extension/shared/parsers.js'));
 require(path.join(root, 'extension/shared/history.js'));
 
@@ -12,6 +15,12 @@ const { OpenCodeParser, HistoryStore } = globalThis;
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
+
+assert(manifest.manifest_version === 3, 'manifest must use MV3');
+assert(
+  manifest.version === packageJson.version,
+  `manifest version ${manifest.version} must match package version ${packageJson.version}`,
+);
 
 const quotaHtml = `
   rollingUsage: $R[1] = {usagePercent: 42.5, resetInSec: 3600}

@@ -21,15 +21,16 @@ OpenCodeQME stands for **OpenCode Quota Monitor Extension**. It monitors OpenCod
 2. Enable “Developer mode”.
 3. Choose “Load unpacked” and select the `extension` directory.
 
-You can also install `release/opencodeqme-extension-0.1.1.crx`.
+You can also install `release/opencodeqme-extension-0.1.2.crx`.
 
-## Build
+## Test & Build
 
 ```bash
+npm test
 ./build-test.sh
 ./build.sh
 ```
 
 - `./build-test.sh` writes `release-test/opencodeqme-extension.zip` and `release-test/opencodeqme-extension.crx` without version suffixes.
 - `./build.sh` asks for a release suffix in the terminal, then writes `release/opencodeqme-extension-<suffix>.zip` and `release/opencodeqme-extension-<suffix>.crx`.
-- For automation, use `OPENCODE_RELEASE_SUFFIX=0.1.1 ./build.sh` to skip the prompt.
+- For automation, use `OPENCODE_RELEASE_SUFFIX=0.1.2 ./build.sh` to skip the prompt.
