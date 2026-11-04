@@ -90,6 +90,11 @@ function cacheRate(uncached, cacheHit, cacheWrite) {
   return total > 0 ? (Number(cacheHit || 0) / total) * 100 : 0;
 }
 
+function toNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -97,6 +102,52 @@ function todayKey() {
 function effectiveRemaining(window) {
   const value = window.effective_remaining ?? window.remaining;
   return Math.max(0, Math.round(Number(value || 0)));
+}
+
+function statsFromSnapshotData(data = {}) {
+  const modelStats = (data.model_stats || []).map((row) => ({
+    model: row.model || 'Unknown',
+    request_count: toNumber(row.request_count),
+    total_input_tokens: toNumber(row.total_input_tokens),
+    uncached_input_tokens: toNumber(row.uncached_input_tokens),
+    cache_hit_tokens: toNumber(row.cache_hit_tokens),
+    cache_write_tokens: toNumber(row.cache_write_tokens),
+    total_output_tokens: toNumber(row.total_output_tokens),
+    total_cost_usd: toNumber(row.total_cost_usd),
+  }));
+  const dailyStats = (data.daily_stats || []).map((row) => ({
+    date: row.date,
+    request_count: toNumber(row.request_count),
+    total_input_tokens: toNumber(row.input_tokens ?? row.total_input_tokens),
+    uncached_input_tokens: toNumber(row.uncached_input_tokens),
+    cache_hit_tokens: toNumber(row.cache_hit_tokens),
+    cache_write_tokens: toNumber(row.cache_write_tokens),
+    total_output_tokens: toNumber(row.output_tokens ?? row.total_output_tokens),
+    total_cost_usd: toNumber(row.cost_usd ?? row.total_cost_usd),
+  }));
+  const totals = modelStats.reduce((acc, row) => {
+    acc.requests += row.request_count;
+    acc.input += row.total_input_tokens;
+    acc.output += row.total_output_tokens;
+    acc.uncached += row.uncached_input_tokens;
+    acc.cacheRead += row.cache_hit_tokens;
+    acc.cacheWrite += row.cache_write_tokens;
+    acc.cost += row.total_cost_usd;
+    return acc;
+  }, {
+    requests: 0,
+    input: 0,
+    output: 0,
+    uncached: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    cost: 0,
+    todayTokens: toNumber(data.today_tokens),
+    todayRequests: toNumber(data.today_requests),
+  });
+  totals.requests = totals.requests || toNumber(data.total_records);
+  const dailyByDate = new Map();
+  return { totals, dailyStats, dailyByDate, modelStats };
 }
 
 function computeStats(allRecords) {
@@ -337,11 +388,21 @@ function renderOverview() {
     : `<div class="empty-state">${t('noData')}</div>`;
 
   els.overviewRecordCount.textContent = t('recordsCount', { count: formatCount(totalRecords) });
-  const recent = records.slice(0, 10);
+  const recent = records.length
+    ? records.slice(0, 10)
+    : stats.modelStats.slice(0, 10).map((row) => ({
+      created_at: '',
+      model: row.model,
+      input_tokens: row.total_input_tokens,
+      output_tokens: row.total_output_tokens,
+      cost_usd: row.total_cost_usd,
+      plan: '',
+      aggregate: true,
+    }));
   els.overviewRecent.innerHTML = recent.length
     ? recent.map((record) => `
         <tr>
-          <td>${esc(formatTime(record.created_at))}</td>
+          <td>${esc(record.aggregate ? t('last30Days') : formatTime(record.created_at))}</td>
           <td>${esc(record.model || t('unknownModel'))}</td>
           <td class="num">${formatCount(record.input_tokens)}</td>
           <td class="num">${formatCount(record.output_tokens)}</td>
@@ -426,6 +487,7 @@ function renderDaily() {
   els.dailyDate.max = today;
 
   const rows = stats.dailyByDate.get(selectedDate) || [];
+  const daily = stats.dailyStats.find((row) => row.date === selectedDate) || null;
   const day = rows.reduce((acc, row) => {
     acc.request_count += row.request_count;
     acc.total_input_tokens += row.total_input_tokens;
@@ -435,7 +497,15 @@ function renderDaily() {
     acc.cache_write_tokens += row.cache_write_tokens;
     acc.total_cost_usd += row.total_cost_usd;
     return acc;
-  }, {
+  }, daily ? {
+    request_count: daily.request_count,
+    total_input_tokens: daily.total_input_tokens,
+    total_output_tokens: daily.total_output_tokens,
+    uncached_input_tokens: daily.uncached_input_tokens,
+    cache_hit_tokens: daily.cache_hit_tokens,
+    cache_write_tokens: daily.cache_write_tokens,
+    total_cost_usd: daily.total_cost_usd,
+  } : {
     request_count: 0,
     total_input_tokens: 0,
     total_output_tokens: 0,
@@ -450,14 +520,22 @@ function renderDaily() {
     day.cache_write_tokens,
   );
 
-  els.dailyKpis.innerHTML = [
-    kpi(t('requestsLabel'), formatCount(day.request_count), formatDate(selectedDate), 'wide'),
-    kpi(t('input'), formatTokens(day.total_input_tokens), t('uncachedInputSub', { count: formatTokens(day.uncached_input_tokens) }), 'wide'),
-    kpi(t('output'), formatTokens(day.total_output_tokens), t('localRecordsSub'), 'wide'),
-    kpi(t('cacheTokens'), formatTokens(day.cache_hit_tokens), t('cacheWriteSub', { count: formatTokens(day.cache_write_tokens) }), 'wide'),
-    kpi(t('cacheRate'), `${rate.toFixed(1)}%`, t('avgRemainingSub'), 'wide'),
-    kpi(t('cost'), formatMoney(day.total_cost_usd), t('modelCount', { count: rows.length }), 'wide'),
-  ].join('');
+  const aggregateOnly = snapshot?.snapshot?.source === 'console-v2';
+  const dayTokens = day.total_input_tokens + day.total_output_tokens;
+  els.dailyKpis.innerHTML = aggregateOnly
+    ? [
+        kpi(t('requestsLabel'), formatCount(day.request_count), formatDate(selectedDate), 'wide'),
+        kpi(t('totalTokens'), formatTokens(dayTokens), formatDate(selectedDate), 'wide'),
+        kpi(t('cost'), formatMoney(day.total_cost_usd), formatDate(selectedDate), 'wide'),
+      ].join('')
+    : [
+        kpi(t('requestsLabel'), formatCount(day.request_count), formatDate(selectedDate), 'wide'),
+        kpi(t('input'), formatTokens(day.total_input_tokens), t('uncachedInputSub', { count: formatTokens(day.uncached_input_tokens) }), 'wide'),
+        kpi(t('output'), formatTokens(day.total_output_tokens), t('localRecordsSub'), 'wide'),
+        kpi(t('cacheTokens'), formatTokens(day.cache_hit_tokens), t('cacheWriteSub', { count: formatTokens(day.cache_write_tokens) }), 'wide'),
+        kpi(t('cacheRate'), `${rate.toFixed(1)}%`, t('avgRemainingSub'), 'wide'),
+        kpi(t('cost'), formatMoney(day.total_cost_usd), t('modelCount', { count: rows.length }), 'wide'),
+      ].join('');
 
   els.dailyDateLabel.textContent = formatDate(selectedDate);
   els.dailyPrevBtn.disabled = false;
@@ -484,7 +562,9 @@ function renderDaily() {
           </tr>
         `;
       }).join('')
-    : emptyRow(8, t('noDailyRecords'));
+    : emptyRow(8, snapshot?.snapshot?.source === 'console-v2'
+      ? t('aggregateDailyBreakdownUnavailable')
+      : t('noDailyRecords'));
 }
 
 function recordCategoryValues(category) {
@@ -605,9 +685,12 @@ function renderRecords() {
   );
   const accountName = displayAccountName(snapshot?.account);
 
-  els.recordsSummary.textContent = query || recordCategory !== 'all'
-    ? t('filteredSummary', { count: formatCount(filtered.length) })
-    : t('totalSummary', { count: formatCount(filtered.length) });
+  const aggregateOnly = snapshot?.snapshot?.source === 'console-v2';
+  els.recordsSummary.textContent = aggregateOnly
+    ? t('aggregateRecordsSummary')
+    : query || recordCategory !== 'all'
+      ? t('filteredSummary', { count: formatCount(filtered.length) })
+      : t('totalSummary', { count: formatCount(filtered.length) });
   els.recordsPageLabel.textContent = t('pageInfo', {
     current: recordsPage + 1,
     total: pages,
@@ -630,7 +713,9 @@ function renderRecords() {
           <td>${record.plan ? `<span class="badge">${esc(displayPlan(record.plan))}</span>` : '—'}</td>
         </tr>
       `).join('')
-    : emptyRow(10, query || recordCategory !== 'all' ? t('noMatchingRecords') : t('noRecords'));
+    : emptyRow(10, aggregateOnly
+      ? t('aggregateRecordsUnavailable')
+      : query || recordCategory !== 'all' ? t('noMatchingRecords') : t('noRecords'));
 }
 
 function renderSyncStatus() {
@@ -778,7 +863,9 @@ async function loadAll(animate = true) {
     ]);
     snapshot = snapshotResponse.snapshot || null;
     records = recordsResponse.records || [];
-    stats = computeStats(records);
+    stats = snapshot?.snapshot?.source === 'console-v2'
+      ? statsFromSnapshotData(snapshot.snapshot)
+      : computeStats(records);
   } catch (error) {
     console.error('[OpenCodeQME tab] load failed', error);
   }

@@ -115,21 +115,32 @@ function renderQuota() {
 }
 
 function renderRecent() {
-  const records = currentSnapshot?.snapshot?.recent_records || [];
+  const data = currentSnapshot?.snapshot || {};
+  const records = data.recent_records || [];
+  const aggregates = records.length
+    ? []
+    : (data.model_stats || []).slice(0, 3).map((row) => ({
+      model: row.model,
+      input_tokens: row.total_input_tokens,
+      output_tokens: row.total_output_tokens,
+      cost_usd: row.total_cost_usd,
+      aggregate: true,
+    }));
+  const items = records.length ? records.slice(0, 3) : aggregates;
   els.recordCount.textContent = t('recordsCount', {
-    count: formatTokens(currentSnapshot?.snapshot?.total_records || 0),
+    count: formatTokens(data.total_records || 0),
   });
-  if (!records.length) {
+  if (!items.length) {
     els.recentList.innerHTML = `<div class="empty-state">${t('noRecords')}</div>`;
     return;
   }
 
-  els.recentList.innerHTML = records.slice(0, 3).map((record, index) => `
+  els.recentList.innerHTML = items.map((record, index) => `
     <div class="record-item" style="animation-delay:${index * 35}ms">
       <span class="record-model">${esc(record.model || t('unknownModel'))}</span>
       <span class="record-tokens">${formatTokens((record.input_tokens || 0) + (record.output_tokens || 0))}</span>
       <span class="record-meta">
-        <span>${esc(formatTime(record.created_at))}</span>
+        <span>${esc(record.aggregate ? t('last30Days') : formatTime(record.created_at))}</span>
         <span>${esc(formatMoney(record.cost_usd))}</span>
       </span>
     </div>

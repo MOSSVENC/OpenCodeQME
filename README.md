@@ -13,7 +13,8 @@ OpenCodeQME 全称是 **OpenCode Quota Monitor Extension**，用于监控 OpenCo
 - 小窗口预览：点击浏览器工具栏中的扩展图标打开，展示今日 Token、可用额度、最近记录、同步状态。
 - 独立标签页：从小窗口进入，包含总览、Token 统计、每日趋势、使用记录、设置。
 - 中英文界面切换，并记住上次选择的语言。
-- 后台自动同步完整使用记录，数据保存在本地 IndexedDB。
+- 后台自动同步用量数据；旧版完整记录保存在 IndexedDB，新版 30 天汇总保存在扩展本地存储。
+- 兼容 2026-09 后新版 OpenCode Console：优先使用 `/console/api` 的 Go meters 与 30 天用量汇总，旧版 HTML 解析保留为回退。
 
 ## 安装
 
@@ -21,7 +22,7 @@ OpenCodeQME 全称是 **OpenCode Quota Monitor Extension**，用于监控 OpenCo
 2. 开启“开发者模式”。
 3. 选择“加载已解压的扩展程序”，加载 `extension` 目录。
 
-也可以使用 `release/opencodeqme-extension-0.1.2.crx` 安装。
+也可以使用 `release/opencodeqme-extension-0.1.3.crx` 安装。
 
 ## 测试与构建
 
@@ -33,4 +34,4 @@ npm test
 
 - `./build-test.sh` 输出到 `release-test/opencodeqme-extension.zip` 和 `release-test/opencodeqme-extension.crx`，不带版本后缀，不改版本号。
 - `./build.sh` 会先显示当前版本，再在终端输入下一个版本号（直接回车保持当前版本），确认后自动更新 `extension/manifest.json` 和 `package.json`，并按该版本号输出 `release/opencodeqme-extension-<version>.zip` 和 `release/opencodeqme-extension-<version>.crx`。
-- 自动化构建可用 `OPENCODE_RELEASE_SUFFIX=0.1.2 ./build.sh` 跳过交互确认。
+- 自动化构建可用 `OPENCODE_RELEASE_SUFFIX=0.1.3 ./build.sh` 跳过交互确认。

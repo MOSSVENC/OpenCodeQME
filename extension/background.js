@@ -19,6 +19,7 @@ const KEY_QUOTA = '68hub.quota';
 const KEY_SNAPSHOT = '68hub.snapshot';
 const KEY_SYNC_STATE = '68hub.sync_state';
 const KEY_RECORD_CACHE = '68hub.record_cache';
+const KEY_USAGE_SNAPSHOT = '68hub.usage_snapshot';
 
 let syncing = false;
 
@@ -77,6 +78,25 @@ async function clearRecordCache(workspaceId) {
   await chrome.storage.local.set({ [KEY_RECORD_CACHE]: next });
 }
 
+async function saveUsageSnapshot(workspaceId, usageSnapshot) {
+  const stored = await chrome.storage.local.get(KEY_USAGE_SNAPSHOT);
+  const next = {
+    ...(stored[KEY_USAGE_SNAPSHOT] || {}),
+    [workspaceId]: {
+      snapshot: usageSnapshot,
+      updated_at: new Date().toISOString(),
+    },
+  };
+  await chrome.storage.local.set({ [KEY_USAGE_SNAPSHOT]: next });
+}
+
+async function clearUsageSnapshot(workspaceId) {
+  const stored = await chrome.storage.local.get(KEY_USAGE_SNAPSHOT);
+  const next = { ...(stored[KEY_USAGE_SNAPSHOT] || {}) };
+  delete next[workspaceId];
+  await chrome.storage.local.set({ [KEY_USAGE_SNAPSHOT]: next });
+}
+
 function withTimeout(promise, ms) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('history snapshot timeout')), ms);
@@ -94,7 +114,7 @@ function withTimeout(promise, ms) {
 }
 
 async function refreshSnapshot() {
-  const stored = await chrome.storage.local.get([KEY_ACCOUNT, KEY_QUOTA]);
+  const stored = await chrome.storage.local.get([KEY_ACCOUNT, KEY_QUOTA, KEY_USAGE_SNAPSHOT]);
   const account = stored[KEY_ACCOUNT] || null;
   const quota = stored[KEY_QUOTA] || null;
   if (!account?.workspace_id) return null;
@@ -107,7 +127,10 @@ async function refreshSnapshot() {
     HistoryStore.buildSnapshot(account.workspace_id),
     1500,
   ).catch(() => null);
-  const snapshot = historySnapshot || HistoryStore.aggregateSnapshot(cache.records);
+  const usageSnapshot = stored[KEY_USAGE_SNAPSHOT]?.[account.workspace_id]?.snapshot || null;
+  const snapshot = usageSnapshot
+    || historySnapshot
+    || HistoryStore.aggregateSnapshot(cache.records);
   const payload = {
     account,
     quota,
@@ -149,9 +172,47 @@ async function syncOnce({ maxPages = 10, includeUpdates = true } = {}) {
   let workspaceId = 'Default';
 
   try {
-    const account = await OpenCodeFetcher.identifyAccount('Default');
+    const storedAccount = await chrome.storage.local.get(KEY_ACCOUNT);
+    const accountHint = storedAccount[KEY_ACCOUNT]?.workspace_id || 'Default';
+    const account = await OpenCodeFetcher.identifyAccount(accountHint);
     workspaceId = account.workspace_id;
     const quota = await OpenCodeFetcher.fetchQuota(workspaceId);
+
+    await chrome.storage.local.set({
+      [KEY_ACCOUNT]: {
+        workspace_id: workspaceId,
+        name: account.name,
+        api: account.api || 'legacy',
+        recognized_at: syncAt,
+      },
+      [KEY_QUOTA]: quota,
+    });
+
+    if (account.api === 'console-v2' && OpenCodeFetcher.fetchUsageSnapshot) {
+      const usageSnapshot = await OpenCodeFetcher.fetchUsageSnapshot(workspaceId);
+      await saveUsageSnapshot(workspaceId, usageSnapshot);
+      await saveLocalSyncState({
+        workspace_id: workspaceId,
+        deepest_page: 0,
+        last_sync_at: syncAt,
+        last_sync_status: 'ok',
+        last_sync_error: '',
+        reached_end: true,
+        source: 'console-v2',
+        range: usageSnapshot.range,
+        total_records: usageSnapshot.total_records,
+      });
+      await refreshSnapshot();
+      updateBadge(quota);
+      return {
+        workspace_id: workspaceId,
+        pages_fetched: 3,
+        records_written: usageSnapshot.total_records,
+        reached_end: true,
+        source: 'console-v2',
+        sync_at: syncAt,
+      };
+    }
 
     const state = await getLocalSyncState(workspaceId);
     const deepest = state && Number.isFinite(Number(state.deepest_page))
@@ -200,17 +261,11 @@ async function syncOnce({ maxPages = 10, includeUpdates = true } = {}) {
       deepest_page: Math.max(deepest, deepestPage),
       last_sync_at: syncAt,
       last_sync_status: 'ok',
+      last_sync_error: '',
       reached_end: reachedEnd,
+      source: 'legacy',
     };
 
-    await chrome.storage.local.set({
-      [KEY_ACCOUNT]: {
-        workspace_id: workspaceId,
-        name: account.name,
-        recognized_at: syncAt,
-      },
-      [KEY_QUOTA]: quota,
-    });
     await HistoryStore.saveRecords(allRecords);
     await saveLocalSyncState(syncState);
     await appendRecordCache(workspaceId, allRecords);
@@ -222,6 +277,7 @@ async function syncOnce({ maxPages = 10, includeUpdates = true } = {}) {
       pages_fetched: pagesFetched,
       records_written: recordsWritten,
       reached_end: reachedEnd,
+      source: 'legacy',
       sync_at: syncAt,
     };
   } catch (error) {
@@ -350,6 +406,7 @@ async function handleMessage(message) {
       delete next[message.workspace_id];
       await chrome.storage.local.set({ [KEY_SYNC_STATE]: next });
       await clearRecordCache(message.workspace_id);
+      await clearUsageSnapshot(message.workspace_id);
       await chrome.storage.local.remove(KEY_SNAPSHOT);
       return {};
     }

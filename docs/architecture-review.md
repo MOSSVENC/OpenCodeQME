@@ -26,4 +26,5 @@
 - 所有 JS/MJS 文件通过 `node --check`。
 - `npm run test:extension` 通过，包含解析器与历史快照聚合测试。
 - `./build-test.sh` 通过，可生成 zip 与 CRX。
-- `./build.sh --suffix 0.1.1` 通过，确认正式 release zip 与 CRX 路径正常。
+- `./build.sh --suffix 0.1.3` 通过，确认正式 release zip 与 CRX 路径正常。
+- 新增新版 `/console/api` 的 Go meters 与 30 天用量汇总兼容测试。

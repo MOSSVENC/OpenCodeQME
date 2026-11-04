@@ -2,6 +2,7 @@ globalThis.HistoryStore = (() => {
   const DB_NAME = '68hub-history';
   const DB_VERSION = 1;
   const RECORDS = 'usage_records';
+  const MICRO_CENTS_PER_DOLLAR = 100_000_000;
 
   let dbPromise = null;
 
@@ -35,13 +36,19 @@ globalThis.HistoryStore = (() => {
     return dbPromise;
   }
 
+  function normalizeRecord(record) {
+    const costRaw = Number(record?.cost_raw);
+    if (!Number.isFinite(costRaw) || costRaw <= 0) return record;
+    return { ...record, cost_usd: costRaw / MICRO_CENTS_PER_DOLLAR };
+  }
+
   async function saveRecords(records) {
     if (!records || !records.length) return 0;
     const db = await openDb();
     const tx = db.transaction(RECORDS, 'readwrite');
     const store = tx.objectStore(RECORDS);
     for (const record of records) {
-      store.put(record);
+      store.put(normalizeRecord(record));
     }
     await new Promise((resolve, reject) => {
       tx.oncomplete = resolve;
@@ -57,7 +64,7 @@ globalThis.HistoryStore = (() => {
     const index = tx.objectStore(RECORDS).index('workspace_id');
     const records = await requestToPromise(index.getAll(IDBKeyRange.only(workspaceId)));
     records.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
-    return records;
+    return records.map(normalizeRecord);
   }
 
   function todayKey() {
@@ -78,7 +85,8 @@ globalThis.HistoryStore = (() => {
     let todayTokens = 0;
     let todayRequests = 0;
 
-    for (const record of records) {
+    for (const rawRecord of records) {
+      const record = normalizeRecord(rawRecord);
       const date = String(record.created_at || '').slice(0, 10);
       const model = String(record.model || 'Unknown');
       const input = Number(record.input_tokens || 0);

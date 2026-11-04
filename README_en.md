@@ -13,7 +13,8 @@ OpenCodeQME stands for **OpenCode Quota Monitor Extension**. It monitors OpenCod
 - Compact popup: click the toolbar extension icon to open today tokens, available quota, recent records and sync status.
 - Full tab view: open from the popup, with overview, token stats, daily trends, usage records and settings.
 - Chinese and English UI with persisted language settings.
-- Background sync stores full usage history in local IndexedDB.
+- Background sync stores usage locally: legacy per-request history in IndexedDB, and post-2026-09 aggregates in extension storage.
+- Compatible with the post-2026-09 OpenCode Console: prefers `/console/api` Go meters and 30-day usage aggregates, with the legacy HTML parser retained as fallback.
 
 ## Install
 
@@ -21,7 +22,7 @@ OpenCodeQME stands for **OpenCode Quota Monitor Extension**. It monitors OpenCod
 2. Enable “Developer mode”.
 3. Choose “Load unpacked” and select the `extension` directory.
 
-You can also install `release/opencodeqme-extension-0.1.2.crx`.
+You can also install `release/opencodeqme-extension-0.1.3.crx`.
 
 ## Test & Build
 
@@ -33,4 +34,4 @@ npm test
 
 - `./build-test.sh` writes `release-test/opencodeqme-extension.zip` and `release-test/opencodeqme-extension.crx` without version suffixes.
 - `./build.sh` asks for a release suffix in the terminal, then writes `release/opencodeqme-extension-<suffix>.zip` and `release/opencodeqme-extension-<suffix>.crx`.
-- For automation, use `OPENCODE_RELEASE_SUFFIX=0.1.2 ./build.sh` to skip the prompt.
+- For automation, use `OPENCODE_RELEASE_SUFFIX=0.1.3 ./build.sh` to skip the prompt.
