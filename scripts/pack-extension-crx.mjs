@@ -78,6 +78,7 @@ if (versionChanged) {
   console.log(`版本已更新为 ${suffix}`);
 }
 
+const zipPath = path.join(releaseDir, `opencodeqme-extension-${suffix}.zip`);
 const crxPath = path.join(releaseDir, `opencodeqme-extension-${suffix}.crx`);
 
 execFileSync('node', [
@@ -90,8 +91,8 @@ execFileSync('node', [
   stdio: 'inherit',
 });
 
-const tempPem = packCrx({ extensionDir, outputPath: crxPath, pemPath, packRoot });
-if (existsSync(tempPem)) {
+const tempPem = packCrx({ extensionDir, outputPath: crxPath, pemPath, packRoot, zipPath });
+if (tempPem && existsSync(tempPem)) {
   copyFileSync(tempPem, pemPath);
 }
 

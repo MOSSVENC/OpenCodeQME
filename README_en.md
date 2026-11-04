@@ -35,3 +35,4 @@ npm test
 - `./build-test.sh` writes `release-test/opencodeqme-extension.zip` and `release-test/opencodeqme-extension.crx` without version suffixes.
 - `./build.sh` asks for a release suffix in the terminal, then writes `release/opencodeqme-extension-<suffix>.zip` and `release/opencodeqme-extension-<suffix>.crx`.
 - For automation, use `OPENCODE_RELEASE_SUFFIX=0.1.3 ./build.sh` to skip the prompt.
+- Builds use pure Node ZIP/CRX3 packaging, requiring neither system `zip` nor Chromium; CRX signatures are verified automatically.

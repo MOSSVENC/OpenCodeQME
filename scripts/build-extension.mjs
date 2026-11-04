@@ -8,6 +8,7 @@ import {
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { packCrx } from './pack-crx.mjs';
+import { writeZipFile } from './zip.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const extensionDir = path.join(root, 'extension');
@@ -54,15 +55,12 @@ for (const file of [
 
 if (!existsSync(outputDir)) mkdirSync(outputDir, { recursive: true });
 rmSync(zipPath, { force: true });
-execFileSync('zip', ['-r', zipPath, 'extension'], {
-  cwd: root,
-  stdio: 'inherit',
-});
+writeZipFile(extensionDir, zipPath, 'extension');
 
 console.log(`extension manifest v${manifest.version} validated`);
 console.log(`extension bundle: ${zipPath}`);
 
 if (withCrx) {
-  packCrx({ extensionDir, outputPath: crxPath, pemPath, packRoot });
+  packCrx({ extensionDir, outputPath: crxPath, pemPath, packRoot, zipPath });
   console.log(`extension crx: ${crxPath}`);
 }
